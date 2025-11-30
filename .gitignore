@@ -1,0 +1,24 @@
+# Ignorar todo por defecto
+*
+
+# Incluir explícitamente el contenido de /lib (toda la programación)
+!lib/
+!lib/**
+
+# Incluir logo (png o jpg)
+!logo.png
+!logo.jpg
+
+# Incluir icono de la app
+!icon_app.png
+
+# Incluir configuraciones de dependencias de Flutter
+!pubspec.yaml
+!pubspec.lock
+!analysis_options.yaml
+
+# Incluir README (documentación)
+!README.md
+
+# Mantener la estructura de .gitignore
+!.gitignore
