@@ -20,5 +20,12 @@
 # Incluir README (documentación)
 !README.md
 
+# Incluir archivo de ejemplo de variables de entorno
+!.env.example
+!env.example
+
+# Ignorar archivo .env real (contiene credenciales)
+.env
+
 # Mantener la estructura de .gitignore
 !.gitignore
