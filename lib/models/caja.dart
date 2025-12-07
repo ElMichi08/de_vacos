@@ -4,6 +4,7 @@ class Caja {
   final String tipo; // 'Ingreso', 'Egreso', 'Caja Chica'
   final double valor;
   final DateTime fecha;
+  final bool isSystemGenerated; // true si es generado automáticamente por el sistema
 
   Caja({
     this.id,
@@ -11,6 +12,7 @@ class Caja {
     required this.tipo,
     required this.valor,
     required this.fecha,
+    this.isSystemGenerated = false,
   });
 
   Map<String, dynamic> toMap() {
@@ -20,6 +22,7 @@ class Caja {
       'tipo': tipo,
       'valor': valor,
       'fecha': fecha.toIso8601String(),
+      'isSystemGenerated': isSystemGenerated ? 1 : 0,
     };
   }
 
@@ -30,6 +33,7 @@ class Caja {
       tipo: map['tipo'],
       valor: map['valor'] is int ? (map['valor'] as int).toDouble() : map['valor'],
       fecha: DateTime.parse(map['fecha']),
+      isSystemGenerated: (map['isSystemGenerated'] ?? 0) == 1,
     );
   }
 

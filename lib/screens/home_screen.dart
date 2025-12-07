@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../core/constants/app_colors.dart';
 import '../core/constants/app_constants.dart';
+import '../widgets/license_status_modal.dart';
 import 'product_grid_screen.dart';
 import 'order_list_screen.dart';
 import 'report_screen.dart';
@@ -140,17 +141,30 @@ class HomeScreen extends StatelessWidget {
           );
         },
       ),
+      // Vista de Pruebas - Ocultada pero no eliminada
+      // _MenuItem(
+      //   icon: Icons.science,
+      //   title: 'Pruebas',
+      //   subtitle: 'Generar datos de prueba',
+      //   color: Colors.purple,
+      //   onTap: () {
+      //     Navigator.push(
+      //       context,
+      //       MaterialPageRoute(
+      //         builder: (context) => const TestDataScreen(),
+      //       ),
+      //     );
+      //   },
+      // ),
       _MenuItem(
-        icon: Icons.science,
-        title: 'Pruebas',
-        subtitle: 'Generar datos de prueba',
-        color: Colors.purple,
+        icon: Icons.verified_user,
+        title: 'Licencia',
+        subtitle: 'Ver estado de la licencia',
+        color: Colors.teal,
         onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const TestDataScreen(),
-            ),
+          showDialog(
+            context: context,
+            builder: (context) => const LicenseStatusModal(),
           );
         },
       ),

@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import '../core/database/db_helper.dart';
 import '../models/caja.dart';
 
@@ -22,7 +23,38 @@ class CajaService {
     
     try {
       final db = await DBHelper.db;
-      return await db.insert('caja_movimientos', movimiento.toMap());
+      
+      // Verificar que la columna isSystemGenerated existe antes de insertar
+      final tableInfo = await db.rawQuery('PRAGMA table_info(caja_movimientos)');
+      final columnNames = tableInfo.map((row) => row['name'] as String).toList();
+      final tieneColumna = columnNames.contains('isSystemGenerated');
+      
+      // Si la columna no existe, intentar agregarla
+      bool columnaAgregada = false;
+      if (!tieneColumna) {
+        try {
+          await db.execute('ALTER TABLE caja_movimientos ADD COLUMN isSystemGenerated INTEGER DEFAULT 0');
+          debugPrint('Columna isSystemGenerated agregada a caja_movimientos');
+          columnaAgregada = true;
+        } catch (e) {
+          debugPrint('Error al agregar columna isSystemGenerated: $e');
+        }
+      }
+      
+      // Crear un mapa solo con las columnas que existen (o que acabamos de agregar)
+      final mapToInsert = <String, dynamic>{
+        'descripcion': movimiento.descripcion,
+        'tipo': movimiento.tipo,
+        'valor': movimiento.valor,
+        'fecha': movimiento.fecha.toIso8601String(),
+      };
+      
+      // Solo incluir isSystemGenerated si la columna existe o fue agregada
+      if (tieneColumna || columnaAgregada) {
+        mapToInsert['isSystemGenerated'] = movimiento.isSystemGenerated ? 1 : 0;
+      }
+      
+      return await db.insert('caja_movimientos', mapToInsert);
     } catch (e) {
       throw Exception('Error al guardar movimiento de caja: $e');
     }
@@ -98,9 +130,28 @@ class CajaService {
     
     try {
       final db = await DBHelper.db;
+      
+      // Verificar que la columna isSystemGenerated existe antes de actualizar
+      final tableInfo = await db.rawQuery('PRAGMA table_info(caja_movimientos)');
+      final columnNames = tableInfo.map((row) => row['name'] as String).toList();
+      final tieneColumna = columnNames.contains('isSystemGenerated');
+      
+      // Crear un mapa solo con las columnas que existen
+      final mapToUpdate = <String, dynamic>{
+        'descripcion': movimiento.descripcion,
+        'tipo': movimiento.tipo,
+        'valor': movimiento.valor,
+        'fecha': movimiento.fecha.toIso8601String(),
+      };
+      
+      // Solo incluir isSystemGenerated si la columna existe
+      if (tieneColumna) {
+        mapToUpdate['isSystemGenerated'] = movimiento.isSystemGenerated ? 1 : 0;
+      }
+      
       return await db.update(
         'caja_movimientos',
-        movimiento.toMap(),
+        mapToUpdate,
         where: 'id = ?',
         whereArgs: [movimiento.id],
       );

@@ -1,6 +1,6 @@
 name: de_vacos
 description: "Aplicación de gestión para restaurante De Vacos Urban Grill"
-version: 2.7.1+1
+version: 2.9.1+1
 
 environment:
   sdk: ^3.7.2
@@ -22,6 +22,9 @@ dependencies:
   permission_handler: ^11.4.0                    # Permisos Bluetooth
   flutter_slidable: ^3.1.1
   shared_preferences: ^2.3.3                     # Guardar preferencias (tamaño de papel)
+  supabase_flutter: ^2.5.6                       # Cliente Supabase para Flutter
+  connectivity_plus: ^6.0.5                      # Verificación de conectividad a internet
+  flutter_dotenv: ^5.1.0                         # Variables de entorno
 
 dev_dependencies:
   flutter_test:
@@ -43,6 +46,7 @@ flutter:
   # To add assets to your application, add an assets section, like this:
   assets:
     - logo.png
+    - .env
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/to/resolution-aware-images

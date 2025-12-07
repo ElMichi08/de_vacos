@@ -89,6 +89,22 @@ class DBHelper {
             await db.execute('ALTER TABLE productos ADD COLUMN cancelado INTEGER DEFAULT 0');
             await db.execute('UPDATE productos SET cancelado = 0 WHERE cancelado IS NULL');
           }
+
+          // Verificar columnas de caja_movimientos
+          try {
+            final cajaTableInfo = await db.rawQuery('PRAGMA table_info(caja_movimientos)');
+            final cajaColumnNames = cajaTableInfo.map((row) => row['name'] as String).toList();
+            
+            if (!cajaColumnNames.contains('isSystemGenerated')) {
+              debugPrint('Agregando columna isSystemGenerated a caja_movimientos...');
+              await db.execute('ALTER TABLE caja_movimientos ADD COLUMN isSystemGenerated INTEGER DEFAULT 0');
+              await db.execute('UPDATE caja_movimientos SET isSystemGenerated = 0 WHERE isSystemGenerated IS NULL');
+              debugPrint('Columna isSystemGenerated agregada exitosamente');
+            }
+          } catch (e) {
+            debugPrint('Error al verificar columnas de caja_movimientos: $e');
+            // Si la tabla no existe, no es un error crítico
+          }
         } catch (e) {
           debugPrint('Error al verificar columnas: $e');
         }
@@ -138,7 +154,8 @@ class DBHelper {
         descripcion TEXT NOT NULL,
         tipo TEXT NOT NULL,
         valor REAL NOT NULL,
-        fecha TEXT NOT NULL
+        fecha TEXT NOT NULL,
+        isSystemGenerated INTEGER DEFAULT 0
       )
     ''');
   }
@@ -271,6 +288,63 @@ class DBHelper {
       return await dbClient.insert('productos', producto.toMap());
     } catch (e) {
       throw Exception('Error al insertar producto: $e');
+    }
+  }
+
+  /// Obtiene la auditoría semanal de ventas
+  /// Retorna un Map con 'cantidad' (int) y 'total' (double)
+  /// Filtros aplicados:
+  /// - cancelado = 0 (solo pedidos activos)
+  /// - estadoPago = 'Cobrado' (solo dinero real)
+  /// - Rango de fechas entre inicio y fin
+  static Future<Map<String, dynamic>> obtenerAuditoriaSemanal(
+    DateTime inicio,
+    DateTime fin,
+  ) async {
+    try {
+      final dbClient = await db;
+      
+      // Normalizar fechas: inicio al inicio del día, fin al final del día
+      final inicioNormalizado = DateTime(inicio.year, inicio.month, inicio.day);
+      final finNormalizado = DateTime(
+        fin.year,
+        fin.month,
+        fin.day,
+        23,
+        59,
+        59,
+        999,
+      );
+      
+      // Consulta SQL para obtener cantidad y total de pedidos cobrados
+      final result = await dbClient.rawQuery('''
+        SELECT 
+          COUNT(*) as cantidad,
+          COALESCE(SUM(total), 0) as total
+        FROM pedidos
+        WHERE cancelado = 0
+          AND estadoPago = 'Cobrado'
+          AND fecha BETWEEN ? AND ?
+      ''', [
+        inicioNormalizado.toIso8601String(),
+        finNormalizado.toIso8601String(),
+      ]);
+      
+      if (result.isEmpty) {
+        return {'cantidad': 0, 'total': 0.0};
+      }
+      
+      final row = result.first;
+      final cantidad = row['cantidad'] as int? ?? 0;
+      final total = (row['total'] as num?)?.toDouble() ?? 0.0;
+      
+      return {
+        'cantidad': cantidad,
+        'total': total,
+      };
+    } catch (e) {
+      debugPrint('Error al obtener auditoría semanal: $e');
+      throw Exception('Error al obtener auditoría semanal: $e');
     }
   }
 

@@ -3,6 +3,8 @@ import 'package:intl/intl.dart';
 import '../core/constants/app_colors.dart';
 import '../core/constants/app_constants.dart';
 import '../services/caja_service.dart';
+import '../services/ventas_service.dart';
+import '../services/license_service.dart';
 import '../models/caja.dart';
 import '../widgets/back_header_widget.dart';
 import '../widgets/info_panel.dart';
@@ -34,9 +36,59 @@ class _CajaScreenState extends State<CajaScreen> {
     });
 
     try {
+      // 1. Obtener movimientos manuales de la base de datos
       final lista = await CajaService.obtenerPorFecha(_fechaInicio, fechaFin: _fechaFin);
+      
+      // 2. Calcular ventas automáticas del rango de fechas
+      // Si es un solo día, usar obtenerVentasDelDia, si es rango usar obtenerVentasDelRango
+      double totalVentas = 0.0;
+      try {
+        final esUnSoloDia = _fechaInicio.year == _fechaFin.year &&
+            _fechaInicio.month == _fechaFin.month &&
+            _fechaInicio.day == _fechaFin.day;
+        
+        if (esUnSoloDia) {
+          // Solo calcular ventas del día seleccionado
+          totalVentas = await VentasService.obtenerVentasDelDia(_fechaInicio);
+        } else {
+          // Calcular ventas del rango
+          totalVentas = await VentasService.obtenerVentasDelRango(_fechaInicio, _fechaFin);
+        }
+      } catch (e) {
+        debugPrint('Error al calcular ventas automáticas: $e');
+        // Continuar sin ventas automáticas si hay error
+      }
+      
+      // 3. Crear lista combinada: primero ventas del sistema, luego movimientos manuales
+      final List<Caja> movimientosCombinados = [];
+      
+      // Agregar "Ventas del Sistema" si hay ventas
+      if (totalVentas > 0) {
+        // Usar la fecha de inicio del rango para el movimiento de sistema
+        final fechaVentas = DateTime(
+          _fechaInicio.year,
+          _fechaInicio.month,
+          _fechaInicio.day,
+          0, // Inicio del día
+        );
+        
+        final ventasSistema = Caja(
+          id: null, // No tiene ID porque no está en la BD
+          descripcion: 'Ventas del Sistema',
+          tipo: 'Ingreso',
+          valor: totalVentas,
+          fecha: fechaVentas,
+          isSystemGenerated: true, // Marcar como generado por el sistema
+        );
+        
+        movimientosCombinados.add(ventasSistema);
+      }
+      
+      // Agregar movimientos manuales después
+      movimientosCombinados.addAll(lista);
+      
       setState(() {
-        movimientos = lista;
+        movimientos = movimientosCombinados;
         isLoading = false;
       });
     } catch (e) {
@@ -122,6 +174,18 @@ class _CajaScreenState extends State<CajaScreen> {
   }
 
   Future<void> _editarMovimiento(Caja movimiento) async {
+    // No permitir editar movimientos generados por el sistema
+    if (movimiento.isSystemGenerated) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se puede editar un movimiento generado automáticamente por el sistema'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+      return;
+    }
     final result = await showDialog<Caja>(
       context: context,
       builder: (context) => _MovimientoDialog(
@@ -156,6 +220,18 @@ class _CajaScreenState extends State<CajaScreen> {
   }
 
   Future<void> _eliminarMovimiento(Caja movimiento) async {
+    // No permitir eliminar movimientos generados por el sistema
+    if (movimiento.isSystemGenerated) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se puede eliminar un movimiento generado automáticamente por el sistema'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+      return;
+    }
     final confirmar = await showDialog<bool>(
       context: context,
       builder: (context) => AlertDialog(
@@ -208,6 +284,143 @@ class _CajaScreenState extends State<CajaScreen> {
             ),
           );
         }
+      }
+    }
+  }
+
+  Future<void> _cerrarCaja() async {
+    // Mostrar diálogo de confirmación
+    final confirmar = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        backgroundColor: AppColors.cardBackground,
+        title: const Text(
+          'Cerrar Caja',
+          style: TextStyle(color: Colors.white),
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text(
+              '¿Estás seguro de cerrar la caja?',
+              style: TextStyle(color: Colors.white70),
+            ),
+            const SizedBox(height: 12),
+            const Text(
+              'Se enviarán los datos de ventas al servidor para el rango:',
+              style: TextStyle(color: Colors.white70, fontSize: 12),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              _fechaInicio.year == _fechaFin.year &&
+                      _fechaInicio.month == _fechaFin.month &&
+                      _fechaInicio.day == _fechaFin.day
+                  ? DateFormat('dd/MM/yyyy').format(_fechaInicio)
+                  : '${DateFormat('dd/MM/yyyy').format(_fechaInicio)} - ${DateFormat('dd/MM/yyyy').format(_fechaFin)}',
+              style: const TextStyle(
+                color: AppColors.accent,
+                fontSize: 14,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text(
+              'Cancelar',
+              style: TextStyle(color: Colors.white70),
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => Navigator.pop(context, true),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.success,
+            ),
+            child: const Text('Cerrar Caja'),
+          ),
+        ],
+      ),
+    );
+
+    if (confirmar != true) return;
+
+    // Mostrar loading
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => const Center(
+        child: CircularProgressIndicator(
+          color: AppColors.accent,
+        ),
+      ),
+    );
+
+    try {
+      // Normalizar fechas: inicio al inicio del día, fin al final del día
+      final fechaInicio = DateTime(
+        _fechaInicio.year,
+        _fechaInicio.month,
+        _fechaInicio.day,
+      );
+      final fechaFin = DateTime(
+        _fechaFin.year,
+        _fechaFin.month,
+        _fechaFin.day,
+        23,
+        59,
+        59,
+        999,
+      );
+
+      // Enviar cierre de caja a Supabase
+      final exito = await LicenseService.enviarCierreCaja(
+        fechaInicio: fechaInicio,
+        fechaFin: fechaFin,
+      );
+
+      // Cerrar loading
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+
+      if (exito) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text('✅ Caja cerrada exitosamente. Datos enviados al servidor.'),
+              backgroundColor: AppColors.success,
+              duration: Duration(seconds: 3),
+            ),
+          );
+        }
+      }
+    } catch (e) {
+      // Cerrar loading
+      if (mounted) {
+        Navigator.of(context).pop();
+      }
+
+      // Mostrar error con snackbar
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text(
+              '❌ Error al cerrar la caja: ${e.toString()}',
+              style: const TextStyle(fontSize: 14),
+            ),
+            backgroundColor: AppColors.error,
+            duration: const Duration(seconds: 5),
+            action: SnackBarAction(
+              label: 'Reintentar',
+              textColor: Colors.white,
+              onPressed: () => _cerrarCaja(),
+            ),
+          ),
+        );
       }
     }
   }
@@ -301,10 +514,29 @@ class _CajaScreenState extends State<CajaScreen> {
       backgroundColor: AppColors.background,
       appBar: const BackHeaderWidget(title: 'Caja'),
       body: _buildBody(),
-      floatingActionButton: FloatingActionButton(
-        onPressed: _agregarMovimiento,
-        backgroundColor: AppColors.primary,
-        child: const Icon(Icons.add, color: Colors.white),
+      floatingActionButton: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          // Botón de cerrar caja
+          FloatingActionButton.extended(
+            onPressed: _cerrarCaja,
+            backgroundColor: AppColors.success,
+            icon: const Icon(Icons.lock, color: Colors.white),
+            label: const Text(
+              'Cerrar Caja',
+              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+            ),
+            heroTag: 'cerrar_caja',
+          ),
+          const SizedBox(height: 12),
+          // Botón de agregar movimiento
+          FloatingActionButton(
+            onPressed: _agregarMovimiento,
+            backgroundColor: AppColors.primary,
+            child: const Icon(Icons.add, color: Colors.white),
+            heroTag: 'agregar_movimiento',
+          ),
+        ],
       ),
     );
   }
@@ -521,28 +753,30 @@ class _CajaScreenState extends State<CajaScreen> {
                                 fontWeight: FontWeight.bold,
                               ),
                             ),
-                            PopupMenuButton(
-                              iconColor: Colors.white,
-                              color: AppColors.cardBackground,
-                              itemBuilder: (context) => [
-                                const PopupMenuItem(
-                                  value: 'editar',
-                                  child: Text('Editar', style: TextStyle(color: Colors.white)),
-                                ),
-                                if (movimiento.tipo != 'Caja Chica')
+                            // Solo mostrar botones de editar/eliminar si NO es generado por el sistema
+                            if (!movimiento.isSystemGenerated)
+                              PopupMenuButton(
+                                iconColor: Colors.white,
+                                color: AppColors.cardBackground,
+                                itemBuilder: (context) => [
                                   const PopupMenuItem(
-                                    value: 'eliminar',
-                                    child: Text('Eliminar', style: TextStyle(color: AppColors.error)),
+                                    value: 'editar',
+                                    child: Text('Editar', style: TextStyle(color: Colors.white)),
                                   ),
-                              ],
-                              onSelected: (value) {
-                                if (value == 'editar') {
-                                  _editarMovimiento(movimiento);
-                                } else if (value == 'eliminar') {
-                                  _eliminarMovimiento(movimiento);
-                                }
-                              },
-                            ),
+                                  if (movimiento.tipo != 'Caja Chica')
+                                    const PopupMenuItem(
+                                      value: 'eliminar',
+                                      child: Text('Eliminar', style: TextStyle(color: AppColors.error)),
+                                    ),
+                                ],
+                                onSelected: (value) {
+                                  if (value == 'editar') {
+                                    _editarMovimiento(movimiento);
+                                  } else if (value == 'eliminar') {
+                                    _eliminarMovimiento(movimiento);
+                                  }
+                                },
+                              ),
                           ],
                         ),
                       ),
