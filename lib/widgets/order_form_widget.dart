@@ -62,6 +62,26 @@ class _OrderFormWidgetState extends State<OrderFormWidget> {
       } else {
         // Si cantidad > 1, crear múltiples instancias (una por cada unidad)
         // Cada instancia mantiene la misma configuración (variante, acompañantes, extras)
+        // Distribuir acompañantes de manera que la suma total se mantenga correctamente
+        
+        // Pre-calcular la distribución de acompañantes para cada instancia
+        // Usar índice en lugar de nombre para evitar colisiones cuando hay acompañantes duplicados
+        final acompanantesDistribuidos = <int, List<int>>{};
+        for (int acompananteIndex = 0; acompananteIndex < productoSeleccionado.acompanantes.length; acompananteIndex++) {
+          final acompanante = productoSeleccionado.acompanantes[acompananteIndex];
+          final totalCantidad = acompanante.cantidad;
+          final cantidadBase = totalCantidad ~/ cantidad; // División entera (floor)
+          final resto = totalCantidad % cantidad; // Resto a distribuir
+          
+          // Distribuir: las primeras 'resto' instancias reciben cantidadBase + 1
+          // las restantes reciben cantidadBase
+          final distribucion = List<int>.generate(cantidad, (index) {
+            return index < resto ? cantidadBase + 1 : cantidadBase;
+          });
+          acompanantesDistribuidos[acompananteIndex] = distribucion;
+        }
+        
+        // Crear las instancias con acompañantes distribuidos correctamente
         for (int i = 0; i < cantidad; i++) {
           _productosSeleccionados.add(ProductoSeleccionado(
             productoId: productoSeleccionado.productoId,
@@ -69,15 +89,15 @@ class _OrderFormWidgetState extends State<OrderFormWidget> {
             cantidad: 1, // Cada instancia es cantidad 1
             varianteNombre: productoSeleccionado.varianteNombre,
             precioBase: productoSeleccionado.precioBase,
-            acompanantes: productoSeleccionado.acompanantes.map((a) {
-              // Si el producto original tenía cantidad > 1, dividir acompañantes proporcionalmente
-              // Ejemplo: 2 platos con 2 acompañantes cada uno = 4 acompañantes totales
-              // Al expandir: cada instancia tiene 1 acompañante
-              final cantidadPorInstancia = (a.cantidad / cantidad).round();
+            acompanantes: productoSeleccionado.acompanantes.asMap().entries.map((entry) {
+              final acompananteIndex = entry.key;
+              final acompanante = entry.value;
+              // Obtener la cantidad asignada a esta instancia específica usando el índice
+              final cantidadAsignada = acompanantesDistribuidos[acompananteIndex]?[i] ?? 0;
               return AcompananteSeleccionado(
-                nombre: a.nombre,
-                precioAdicional: a.precioAdicional,
-                cantidad: cantidadPorInstancia.clamp(0, a.cantidad),
+                nombre: acompanante.nombre,
+                precioAdicional: acompanante.precioAdicional,
+                cantidad: cantidadAsignada,
               );
             }).toList(),
             extrasNombres: List<String>.from(productoSeleccionado.extrasNombres),

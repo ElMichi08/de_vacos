@@ -381,7 +381,7 @@ class TicketBuilder {
         styles: const PosStyles(
           fontType: PosFontType.fontB,
           width: PosTextSize.size1,
-          height: PosTextSize.size1,
+          height: PosTextSize.size2,
           bold: true, // nombre del producto en negrita
         ),
       );
@@ -394,7 +394,7 @@ class TicketBuilder {
           styles: const PosStyles(
             fontType: PosFontType.fontB,
             width: PosTextSize.size1,
-            height: PosTextSize.size1,
+            height: PosTextSize.size2,
             bold: false,
           ),
         );

@@ -7,6 +7,8 @@ import '../services/pedido_service.dart';
 import '../models/pedido.dart';
 import '../widgets/back_header_widget.dart';
 import '../widgets/order_detail_modal.dart';
+import '../widgets/date_filter_widget.dart';
+import '../widgets/pagination_controls.dart';
 import 'new_order_screen.dart';
 import 'edit_order_screen.dart';
 
@@ -24,7 +26,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
   String _filtroEstado = 'Todos';
   DateTime _fechaInicio = DateTime.now();
   DateTime _fechaFin = DateTime.now();
-  bool _mostrarFiltroFecha = false; // Por defecto colapsado
+  bool _mostrarFiltroFecha = false; // Por defecto colapsado (manejado por DateFilterWidget)
   
   // Paginación
   int _paginaActual = 1;
@@ -300,87 +302,12 @@ class _OrderListScreenState extends State<OrderListScreen> {
     }
   }
 
-  Future<void> _seleccionarFecha() async {
-    final fecha = await showDatePicker(
-      context: context,
-      initialDate: _fechaInicio,
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.dark(
-              primary: AppColors.accent,
-              onPrimary: Colors.white,
-              surface: AppColors.cardBackground,
-              onSurface: Colors.white,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-
-    if (fecha != null) {
-      setState(() {
-        _fechaInicio = fecha;
-        _fechaFin = fecha;
-      });
-      _cargarPedidos(resetearPagina: true);
-    }
-  }
-
-  Future<void> _seleccionarRangoFechas() async {
-    final fechaInicio = await showDatePicker(
-      context: context,
-      initialDate: _fechaInicio,
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.dark(
-              primary: AppColors.accent,
-              onPrimary: Colors.white,
-              surface: AppColors.cardBackground,
-              onSurface: Colors.white,
-            ),
-          ),
-          child: child!,
-        );
-      },
-    );
-
-    if (fechaInicio != null) {
-      if (!mounted) return;
-      final fechaFin = await showDatePicker(
-        context: context,
-        initialDate: _fechaFin.isBefore(fechaInicio) ? fechaInicio : _fechaFin,
-        firstDate: fechaInicio,
-        lastDate: DateTime.now(),
-        builder: (context, child) {
-          return Theme(
-            data: Theme.of(context).copyWith(
-              colorScheme: const ColorScheme.dark(
-                primary: AppColors.accent,
-                onPrimary: Colors.white,
-                surface: AppColors.cardBackground,
-                onSurface: Colors.white,
-              ),
-            ),
-            child: child!,
-          );
-        },
-      );
-
-      if (fechaFin != null) {
-        setState(() {
-          _fechaInicio = fechaInicio;
-          _fechaFin = fechaFin;
-        });
-        _cargarPedidos(resetearPagina: true);
-      }
-    }
+  void _onFechasChanged(DateTime fechaInicio, DateTime fechaFin) {
+    setState(() {
+      _fechaInicio = fechaInicio;
+      _fechaFin = fechaFin;
+    });
+    _cargarPedidos(resetearPagina: true);
   }
 
   @override
@@ -405,83 +332,11 @@ class _OrderListScreenState extends State<OrderListScreen> {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       // Filtro de fecha
-                      Container(
-                        decoration: BoxDecoration(
-                          border: Border(
-                            bottom: BorderSide(color: Colors.white12, width: 1),
-                          ),
-                        ),
-                        child: ExpansionTile(
-                          tilePadding: const EdgeInsets.symmetric(
-                            horizontal: AppConstants.paddingMedium,
-                            vertical: AppConstants.paddingSmall,
-                          ),
-                          childrenPadding: EdgeInsets.zero,
-                          initiallyExpanded: _mostrarFiltroFecha,
-                          onExpansionChanged: (expanded) {
-                            setState(() {
-                              _mostrarFiltroFecha = expanded;
-                            });
-                          },
-                          title: Row(
-                            children: [
-                              Icon(
-                                Icons.calendar_today,
-                                size: 18,
-                                color: Colors.white70,
-                              ),
-                              const SizedBox(width: 8),
-                              Expanded(
-                                child: Text(
-                                  _fechaInicio.year == _fechaFin.year &&
-                                          _fechaInicio.month == _fechaFin.month &&
-                                          _fechaInicio.day == _fechaFin.day
-                                      ? DateFormat('dd/MM/yyyy').format(_fechaInicio)
-                                      : '${DateFormat('dd/MM/yyyy').format(_fechaInicio)} - ${DateFormat('dd/MM/yyyy').format(_fechaFin)}',
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 13,
-                                    fontWeight: FontWeight.w500,
-                                  ),
-                                ),
-                              ),
-                            ],
-                          ),
-                          iconColor: Colors.white70,
-                          collapsedIconColor: Colors.white70,
-                          children: [
-                            Container(
-                              padding: const EdgeInsets.all(AppConstants.paddingMedium),
-                              child: Column(
-                                children: [
-                                  OutlinedButton.icon(
-                                    onPressed: _seleccionarFecha,
-                                    icon: const Icon(Icons.calendar_today, size: 18),
-                                    label: const Text('Día', style: TextStyle(fontSize: 13)),
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: Colors.white70,
-                                      side: BorderSide(color: Colors.white24, width: 1.5),
-                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                      minimumSize: const Size(double.infinity, 0),
-                                    ),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  OutlinedButton.icon(
-                                    onPressed: _seleccionarRangoFechas,
-                                    icon: const Icon(Icons.date_range, size: 18),
-                                    label: const Text('Rango', style: TextStyle(fontSize: 13)),
-                                    style: OutlinedButton.styleFrom(
-                                      foregroundColor: Colors.white70,
-                                      side: BorderSide(color: Colors.white24, width: 1.5),
-                                      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-                                      minimumSize: const Size(double.infinity, 0),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
+                      DateFilterWidget(
+                        fechaInicio: _fechaInicio,
+                        fechaFin: _fechaFin,
+                        onFechasChanged: _onFechasChanged,
+                        initiallyExpanded: _mostrarFiltroFecha,
                       ),
                       // Filtros de estado
                       Padding(
@@ -545,120 +400,11 @@ class _OrderListScreenState extends State<OrderListScreen> {
           return Column(
             children: [
               // Filtro de fecha
-              Container(
-                decoration: BoxDecoration(
-                  color: AppColors.cardBackground,
-                  border: Border(
-                    bottom: BorderSide(color: Colors.white12, width: 1),
-                  ),
-                ),
-                child: ExpansionTile(
-                  tilePadding: const EdgeInsets.symmetric(
-                    horizontal: AppConstants.paddingMedium,
-                    vertical: AppConstants.paddingSmall,
-                  ),
-                  childrenPadding: EdgeInsets.zero,
-                  initiallyExpanded: _mostrarFiltroFecha,
-                  onExpansionChanged: (expanded) {
-                    setState(() {
-                      _mostrarFiltroFecha = expanded;
-                    });
-                  },
-                  title: Row(
-                    children: [
-                      Icon(
-                        Icons.calendar_today,
-                        size: 18,
-                        color: Colors.white70,
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: Text(
-                          _fechaInicio.year == _fechaFin.year &&
-                                  _fechaInicio.month == _fechaFin.month &&
-                                  _fechaInicio.day == _fechaFin.day
-                              ? DateFormat('dd/MM/yyyy').format(_fechaInicio)
-                              : '${DateFormat('dd/MM/yyyy').format(_fechaInicio)} - ${DateFormat('dd/MM/yyyy').format(_fechaFin)}',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 15,
-                            fontWeight: FontWeight.w500,
-                          ),
-                        ),
-                      ),
-                    ],
-                  ),
-                  subtitle: _fechaInicio.year == _fechaFin.year &&
-                          _fechaInicio.month == _fechaFin.month &&
-                          _fechaInicio.day == _fechaFin.day
-                      ? null
-                      : const Text(
-                          'Rango de fechas',
-                          style: TextStyle(
-                            color: Colors.white54,
-                            fontSize: 12,
-                          ),
-                        ),
-                  iconColor: Colors.white70,
-                  collapsedIconColor: Colors.white70,
-                  children: [
-                    Container(
-                      padding: const EdgeInsets.fromLTRB(
-                        AppConstants.paddingMedium,
-                        AppConstants.paddingSmall,
-                        AppConstants.paddingMedium,
-                        AppConstants.paddingMedium,
-                      ),
-                      child: Row(
-                        children: [
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: _seleccionarFecha,
-                              icon: const Icon(Icons.calendar_today, size: 20),
-                              label: const Text(
-                                'Día',
-                                style: TextStyle(fontSize: 14),
-                              ),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.white70,
-                                side: BorderSide(color: Colors.white24, width: 1.5),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 20,
-                                  vertical: 16,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                              ),
-                            ),
-                          ),
-                          const SizedBox(width: 16),
-                          Expanded(
-                            child: OutlinedButton.icon(
-                              onPressed: _seleccionarRangoFechas,
-                              icon: const Icon(Icons.date_range, size: 20),
-                              label: const Text(
-                                'Rango',
-                                style: TextStyle(fontSize: 14),
-                              ),
-                              style: OutlinedButton.styleFrom(
-                                foregroundColor: Colors.white70,
-                                side: BorderSide(color: Colors.white24, width: 1.5),
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 20,
-                                  vertical: 16,
-                                ),
-                                shape: RoundedRectangleBorder(
-                                  borderRadius: BorderRadius.circular(10),
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
+              DateFilterWidget(
+                fechaInicio: _fechaInicio,
+                fechaFin: _fechaFin,
+                onFechasChanged: _onFechasChanged,
+                initiallyExpanded: _mostrarFiltroFecha,
               ),
               
               // Filtro de estado con chips
@@ -1088,120 +834,24 @@ class _OrderListScreenState extends State<OrderListScreen> {
   }
 
   Widget _buildPaginacionControls() {
-    return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: AppConstants.paddingSmall,
-        vertical: AppConstants.paddingSmall / 2,
-      ),
-      decoration: BoxDecoration(
-        color: AppColors.cardBackground,
-        border: Border(
-          top: BorderSide(color: Colors.white12, width: 1),
-        ),
-      ),
-      child: SafeArea(
-        top: false,
-        child: Row(
-          children: [
-            // Selector de tamaño de página - a la izquierda
-            PopupMenuButton<int>(
-              icon: Row(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  const Icon(Icons.tune, color: Colors.white70, size: 18),
-                  const SizedBox(width: 4),
-                  Text(
-                    '$_tamanoPagina',
-                    style: const TextStyle(color: Colors.white70, fontSize: 14),
-                  ),
-                ],
-              ),
-              color: AppColors.cardBackground,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
-              itemBuilder: (context) => [10, 20, 50, 100].map((int value) {
-                return PopupMenuItem<int>(
-                  value: value,
-                  child: Text(
-                    '$value por página',
-                    style: TextStyle(
-                      color: value == _tamanoPagina ? AppColors.accent : Colors.white,
-                      fontWeight: value == _tamanoPagina ? FontWeight.bold : FontWeight.normal,
-                    ),
-                  ),
-                );
-              }).toList(),
-              onSelected: (int nuevoTamano) {
-                setState(() {
-                  _tamanoPagina = nuevoTamano;
-                  _paginaActual = 1;
-                });
-                _cargarPedidos();
-              },
-            ),
-            
-            // Botones de navegación y información centrada
-            Expanded(
-              child: Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  // Botón anterior
-                  IconButton(
-                    icon: const Icon(Icons.chevron_left, color: Colors.white70),
-                    iconSize: 24,
-                    padding: const EdgeInsets.all(8),
-                    constraints: const BoxConstraints(),
-                    onPressed: _paginaActual > 1
-                        ? () {
-                            setState(() {
-                              _paginaActual--;
-                            });
-                            _cargarPedidos();
-                          }
-                        : null,
-                    tooltip: 'Anterior',
-                  ),
-                  
-                  const SizedBox(width: 8),
-                  
-                  // Información de paginación - en el centro
-                  Text(
-                    '$_paginaActual de $_totalPaginas • $_totalPedidos pedidos',
-                    style: const TextStyle(
-                      color: Colors.white70,
-                      fontSize: 12,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  
-                  const SizedBox(width: 8),
-                  
-                  // Botón siguiente
-                  IconButton(
-                    icon: const Icon(Icons.chevron_right, color: Colors.white70),
-                    iconSize: 24,
-                    padding: const EdgeInsets.all(8),
-                    constraints: const BoxConstraints(),
-                    onPressed: _paginaActual < _totalPaginas
-                        ? () {
-                            setState(() {
-                              _paginaActual++;
-                            });
-                            _cargarPedidos();
-                          }
-                        : null,
-                    tooltip: 'Siguiente',
-                  ),
-                ],
-              ),
-            ),
-            
-            // Espacio para compensar el selector de la izquierda y evitar solapamiento con FAB
-            const SizedBox(width: 56), // Ancho aproximado del selector
-          ],
-        ),
-      ),
+    return PaginationControls(
+      itemsPerPage: _tamanoPagina,
+      currentPage: _paginaActual,
+      totalPages: _totalPaginas,
+      totalItems: _totalPedidos,
+      onItemsPerPageChanged: (int nuevoTamano) {
+        setState(() {
+          _tamanoPagina = nuevoTamano;
+          _paginaActual = 1;
+        });
+        _cargarPedidos();
+      },
+      onPageChanged: (int nuevaPagina) {
+        setState(() {
+          _paginaActual = nuevaPagina;
+        });
+        _cargarPedidos();
+      },
     );
   }
 

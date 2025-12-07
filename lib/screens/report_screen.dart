@@ -6,7 +6,10 @@ import '../services/pedido_service.dart';
 import '../models/pedido.dart';
 import '../widgets/back_header_widget.dart';
 import '../widgets/info_panel.dart';
-import '../widgets/bar_chart_panel.dart';
+import '../widgets/filterable_info_panel.dart';
+import '../widgets/date_filter_widget.dart';
+import '../widgets/order_detail_modal.dart';
+import '../widgets/pagination_controls.dart';
 
 class ReportScreen extends StatefulWidget {
   const ReportScreen({super.key});
@@ -19,7 +22,11 @@ class _ReportScreenState extends State<ReportScreen> {
   List<Pedido> pedidos = [];
   bool isLoading = true;
   String? errorMessage;
-  DateTime _fechaSeleccionada = DateTime.now();
+  DateTime _fechaInicio = DateTime.now();
+  DateTime _fechaFin = DateTime.now();
+  String? _filtroMetodoPago; // null = todos, 'Transferencia' o 'Efectivo'
+  int _itemsPerPage = 20; // Cantidad de pedidos a mostrar
+  int _paginaActual = 1; // Página actual
 
   @override
   void initState() {
@@ -35,8 +42,8 @@ class _ReportScreenState extends State<ReportScreen> {
 
     try {
       final lista = await PedidoService.obtenerTodos(
-        fechaInicio: _fechaSeleccionada,
-        fechaFin: _fechaSeleccionada,
+        fechaInicio: _fechaInicio,
+        fechaFin: _fechaFin,
       );
       setState(() {
         pedidos = lista;
@@ -50,17 +57,41 @@ class _ReportScreenState extends State<ReportScreen> {
     }
   }
 
-  List<Pedido> _obtenerPedidosDelDia() {
+  void _onFechasChanged(DateTime fechaInicio, DateTime fechaFin) {
+    setState(() {
+      _fechaInicio = fechaInicio;
+      _fechaFin = fechaFin;
+    });
+    _cargarPedidos();
+  }
+
+  List<Pedido> _obtenerPedidosDelRango() {
     return pedidos.where((pedido) {
-      return pedido.fecha.year == _fechaSeleccionada.year &&
-          pedido.fecha.month == _fechaSeleccionada.month &&
-          pedido.fecha.day == _fechaSeleccionada.day;
+      final fechaPedido = DateTime(
+        pedido.fecha.year,
+        pedido.fecha.month,
+        pedido.fecha.day,
+      );
+      final fechaInicio = DateTime(
+        _fechaInicio.year,
+        _fechaInicio.month,
+        _fechaInicio.day,
+      );
+      final fechaFin = DateTime(
+        _fechaFin.year,
+        _fechaFin.month,
+        _fechaFin.day,
+      );
+      // Incluir pedidos que estén en el rango (inclusive)
+      return (fechaPedido.isAtSameMomentAs(fechaInicio) ||
+          fechaPedido.isAtSameMomentAs(fechaFin) ||
+          (fechaPedido.isAfter(fechaInicio) && fechaPedido.isBefore(fechaFin)));
     }).toList();
   }
 
   double _calcularTotalIngresos() {
     // Solo computan los pedidos cerrados y cobrados (no cancelados)
-    return _obtenerPedidosDelDia()
+    return _obtenerPedidosDelRango()
         .where((p) => 
             !p.cancelado && 
             p.estado == 'Cerrados' && 
@@ -69,65 +100,92 @@ class _ReportScreenState extends State<ReportScreen> {
   }
 
   int _contarPedidos() {
-    return _obtenerPedidosDelDia()
+    return _obtenerPedidosDelRango()
         .where((p) => !p.cancelado)
         .length;
   }
 
-  int _contarPedidosEntregados() {
-    return _obtenerPedidosDelDia()
-        .where((p) => !p.cancelado && (p.estado == 'Despachada' || p.estado == 'Cerrados'))
+  int _contarTransferencias() {
+    return _obtenerPedidosDelRango()
+        .where((p) => 
+            !p.cancelado && 
+            p.estado == 'Cerrados' && 
+            p.estadoPago == 'Cobrado' &&
+            p.metodoPago == 'Transferencia')
         .length;
   }
 
-  List<Map<String, dynamic>> _obtenerDatosGrafico() {
-    final pedidosDelDia = _obtenerPedidosDelDia();
-    final Map<String, double> ventasPorMetodo = {};
-
-    // Solo computan los pedidos cerrados y cobrados (no cancelados)
-    for (var pedido in pedidosDelDia.where((p) => 
-        !p.cancelado && 
-        p.estado == 'Cerrados' && 
-        p.estadoPago == 'Cobrado')) {
-      ventasPorMetodo[pedido.metodoPago] =
-          (ventasPorMetodo[pedido.metodoPago] ?? 0) + pedido.total;
-    }
-
-    return ventasPorMetodo.entries.map((entry) {
-      return {
-        'label': entry.key,
-        'value': entry.value,
-      };
-    }).toList();
+  int _contarEfectivo() {
+    return _obtenerPedidosDelRango()
+        .where((p) => 
+            !p.cancelado && 
+            p.estado == 'Cerrados' && 
+            p.estadoPago == 'Cobrado' &&
+            p.metodoPago == 'Efectivo')
+        .length;
   }
 
-  Future<void> _seleccionarFecha() async {
-    final fecha = await showDatePicker(
-      context: context,
-      initialDate: _fechaSeleccionada,
-      firstDate: DateTime(2020),
-      lastDate: DateTime.now(),
-      builder: (context, child) {
-        return Theme(
-          data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.dark(
-              primary: AppColors.accent,
-              onPrimary: Colors.white,
-              surface: AppColors.cardBackground,
-              onSurface: Colors.white,
-            ),
-          ),
-          child: child!,
-        );
-      },
+  List<Pedido> _obtenerPedidosFiltrados() {
+    // Solo mostrar pedidos cerrados y cobrados (no cancelados)
+    var pedidosFiltrados = _obtenerPedidosDelRango()
+        .where((p) => 
+            !p.cancelado && 
+            p.estado == 'Cerrados' && 
+            p.estadoPago == 'Cobrado')
+        .toList();
+    
+    // Aplicar filtro por método de pago si está activo
+    if (_filtroMetodoPago != null) {
+      pedidosFiltrados = pedidosFiltrados
+          .where((p) => p.metodoPago == _filtroMetodoPago)
+          .toList();
+    }
+    
+    // Ordenar por fecha más reciente primero
+    pedidosFiltrados.sort((a, b) => b.fecha.compareTo(a.fecha));
+    
+    // Calcular índices para paginación
+    final inicio = (_paginaActual - 1) * _itemsPerPage;
+    final fin = inicio + _itemsPerPage;
+    
+    // Retornar solo los items de la página actual
+    if (inicio >= pedidosFiltrados.length) {
+      return [];
+    }
+    return pedidosFiltrados.sublist(
+      inicio,
+      fin > pedidosFiltrados.length ? pedidosFiltrados.length : fin,
     );
-
-    if (fecha != null) {
-      setState(() {
-        _fechaSeleccionada = fecha;
-      });
-    }
   }
+  
+  int _calcularTotalPaginas() {
+    // Solo contar pedidos cerrados y cobrados (no cancelados)
+    var totalPedidos = _obtenerPedidosDelRango()
+        .where((p) => 
+            !p.cancelado && 
+            p.estado == 'Cerrados' && 
+            p.estadoPago == 'Cobrado')
+        .toList();
+    
+    // Aplicar filtro por método de pago si está activo
+    if (_filtroMetodoPago != null) {
+      totalPedidos = totalPedidos
+          .where((p) => p.metodoPago == _filtroMetodoPago)
+          .toList();
+    }
+    
+    return (totalPedidos.length / _itemsPerPage).ceil();
+  }
+
+  void _mostrarDetallePedido(BuildContext context, Pedido pedido) {
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Colors.transparent,
+      builder: (context) => OrderDetailModal(pedido: pedido),
+    );
+  }
+
 
   @override
   Widget build(BuildContext context) {
@@ -172,71 +230,339 @@ class _ReportScreenState extends State<ReportScreen> {
 
     final totalIngresos = _calcularTotalIngresos();
     final totalPedidos = _contarPedidos();
-    final pedidosEntregados = _contarPedidosEntregados();
+    final transferencias = _contarTransferencias();
+    final efectivo = _contarEfectivo();
+    final pedidosFiltrados = _obtenerPedidosFiltrados();
+    // Calcular total de pedidos cerrados y cobrados (filtrados por método de pago si aplica)
+    var totalPedidosFiltrados = _obtenerPedidosDelRango()
+        .where((p) => 
+            !p.cancelado && 
+            p.estado == 'Cerrados' && 
+            p.estadoPago == 'Cobrado')
+        .toList();
+    
+    if (_filtroMetodoPago != null) {
+      totalPedidosFiltrados = totalPedidosFiltrados
+          .where((p) => p.metodoPago == _filtroMetodoPago)
+          .toList();
+    }
+    
+    final totalPedidosFiltradosCount = totalPedidosFiltrados.length;
+    final totalPaginas = _calcularTotalPaginas();
+    
+    // Asegurar que la página actual no exceda el total de páginas
+    if (_paginaActual > totalPaginas && totalPaginas > 0) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        setState(() {
+          _paginaActual = totalPaginas;
+        });
+      });
+    }
 
-    return SingleChildScrollView(
-      padding: const EdgeInsets.all(AppConstants.paddingMedium),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          // Selector de fecha
-          Card(
-            elevation: AppConstants.cardElevation,
-            color: AppColors.cardBackground,
-            child: ListTile(
-              leading: const Icon(Icons.calendar_today, color: AppColors.accent),
-              title: const Text(
-                'Fecha',
-                style: TextStyle(color: Colors.white70),
-              ),
-              subtitle: Text(
-                DateFormat('dd/MM/yyyy').format(_fechaSeleccionada),
-                style: const TextStyle(color: Colors.white, fontSize: 18),
-              ),
-              trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 16),
-              onTap: _seleccionarFecha,
+    return Column(
+      children: [
+        // Contenido scrollable
+        Expanded(
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(AppConstants.paddingMedium),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                // Selector de fecha
+                DateFilterWidget(
+                  fechaInicio: _fechaInicio,
+                  fechaFin: _fechaFin,
+                  onFechasChanged: _onFechasChanged,
+                ),
+                const SizedBox(height: AppConstants.spacingMedium),
+
+                // Paneles de información principales
+                Row(
+                  children: [
+                    Expanded(
+                      child: InfoPanel(
+                        title: 'Total Ingresos',
+                        value: '\$${totalIngresos.toStringAsFixed(2)}',
+                        icon: Icons.attach_money,
+                        color: AppColors.price,
+                      ),
+                    ),
+                    const SizedBox(width: AppConstants.spacingMedium),
+                    Expanded(
+                      child: FilterableInfoPanel(
+                        title: 'Pedidos',
+                        value: '$totalPedidos',
+                        icon: Icons.receipt_long,
+                        color: AppColors.accent,
+                        isSelected: _filtroMetodoPago == null,
+                        onTap: () {
+                          setState(() {
+                            _filtroMetodoPago = null;
+                          });
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppConstants.spacingMedium),
+
+                // Cards de métodos de pago (filtros)
+                Row(
+                  children: [
+                    Expanded(
+                      child: FilterableInfoPanel(
+                        title: 'Transferencias',
+                        value: '$transferencias',
+                        icon: Icons.account_balance_wallet,
+                        color: const Color(0xFF64B5F6), // Azul claro
+                        isSelected: _filtroMetodoPago == 'Transferencia',
+                        onTap: () {
+                          setState(() {
+                            _filtroMetodoPago = _filtroMetodoPago == 'Transferencia' 
+                                ? null 
+                                : 'Transferencia';
+                          });
+                        },
+                      ),
+                    ),
+                    const SizedBox(width: AppConstants.spacingMedium),
+                    Expanded(
+                      child: FilterableInfoPanel(
+                        title: 'Efectivo',
+                        value: '$efectivo',
+                        icon: Icons.money,
+                        color: const Color(0xFF81C784), // Verde claro
+                        isSelected: _filtroMetodoPago == 'Efectivo',
+                        onTap: () {
+                          setState(() {
+                            _filtroMetodoPago = _filtroMetodoPago == 'Efectivo' 
+                                ? null 
+                                : 'Efectivo';
+                          });
+                        },
+                      ),
+                    ),
+                  ],
+                ),
+                const SizedBox(height: AppConstants.spacingLarge),
+
+                // Lista de pedidos
+                if (pedidosFiltrados.isEmpty)
+                  Card(
+                    elevation: AppConstants.cardElevation,
+                    color: AppColors.cardBackground,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppConstants.borderRadius),
+                    ),
+                    child: Padding(
+                      padding: const EdgeInsets.all(AppConstants.paddingLarge),
+                      child: Center(
+                        child: Column(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            const Icon(
+                              Icons.receipt_long,
+                              size: 48,
+                              color: Colors.white38,
+                            ),
+                            const SizedBox(height: 16),
+                            Text(
+                              _filtroMetodoPago != null
+                                  ? 'No hay pedidos con ${_filtroMetodoPago}'
+                                  : 'No hay pedidos',
+                              style: const TextStyle(
+                                color: Colors.white70,
+                                fontSize: 16,
+                              ),
+                            ),
+                          ],
+                        ),
+                      ),
+                    ),
+                  )
+                else
+                  ...pedidosFiltrados.map((pedido) => Padding(
+                    padding: const EdgeInsets.only(bottom: AppConstants.spacingMedium),
+                    child: Card(
+                      elevation: AppConstants.cardElevation,
+                      color: AppColors.cardBackground,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(AppConstants.borderRadiusLarge),
+                      ),
+                      child: InkWell(
+                        onTap: () => _mostrarDetallePedido(context, pedido),
+                        borderRadius: BorderRadius.circular(AppConstants.borderRadiusLarge),
+                        child: Padding(
+                          padding: const EdgeInsets.all(AppConstants.paddingMedium),
+                          child: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              // Header con número de orden y cliente
+                              Row(
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.primary,
+                                      borderRadius: BorderRadius.circular(12),
+                                    ),
+                                    child: Text(
+                                      '#${pedido.numeroOrden}',
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontWeight: FontWeight.bold,
+                                        fontSize: 16,
+                                      ),
+                                    ),
+                                  ),
+                                  const SizedBox(width: 12),
+                                  Expanded(
+                                    child: Text(
+                                      pedido.cliente,
+                                      style: const TextStyle(
+                                        color: Colors.white,
+                                        fontSize: 18,
+                                        fontWeight: FontWeight.bold,
+                                      ),
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 12),
+                              
+                              // Información del pedido
+                              Row(
+                                children: [
+                                  Expanded(
+                                    child: Text(
+                                      DateFormat('dd/MM/yyyy HH:mm').format(pedido.fecha),
+                                      style: const TextStyle(
+                                        color: Colors.white70,
+                                        fontSize: 14,
+                                      ),
+                                    ),
+                                  ),
+                                  Text(
+                                    '\$${pedido.total.toStringAsFixed(2)}',
+                                    style: const TextStyle(
+                                      color: AppColors.price,
+                                      fontSize: 18,
+                                      fontWeight: FontWeight.bold,
+                                    ),
+                                  ),
+                                ],
+                              ),
+                              const SizedBox(height: 8),
+                              
+                              // Método de pago y estado
+                              Wrap(
+                                spacing: 8,
+                                runSpacing: 8,
+                                children: [
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: pedido.metodoPago == 'Transferencia'
+                                          ? const Color(0xFF64B5F6).withValues(alpha: 0.2)
+                                          : const Color(0xFF81C784).withValues(alpha: 0.2),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: pedido.metodoPago == 'Transferencia'
+                                            ? const Color(0xFF64B5F6)
+                                            : const Color(0xFF81C784),
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        Icon(
+                                          pedido.metodoPago == 'Transferencia'
+                                              ? Icons.account_balance_wallet
+                                              : Icons.money,
+                                          size: 14,
+                                          color: pedido.metodoPago == 'Transferencia'
+                                              ? const Color(0xFF64B5F6)
+                                              : const Color(0xFF81C784),
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          pedido.metodoPago,
+                                          style: TextStyle(
+                                            color: pedido.metodoPago == 'Transferencia'
+                                                ? const Color(0xFF64B5F6)
+                                                : const Color(0xFF81C784),
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                  Container(
+                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                    decoration: BoxDecoration(
+                                      color: AppColors.success.withValues(alpha: 0.2),
+                                      borderRadius: BorderRadius.circular(8),
+                                      border: Border.all(
+                                        color: AppColors.success,
+                                        width: 1.5,
+                                      ),
+                                    ),
+                                    child: Row(
+                                      mainAxisSize: MainAxisSize.min,
+                                      children: [
+                                        const Icon(
+                                          Icons.check_circle,
+                                          size: 14,
+                                          color: AppColors.success,
+                                        ),
+                                        const SizedBox(width: 4),
+                                        Text(
+                                          pedido.estado,
+                                          style: const TextStyle(
+                                            color: AppColors.success,
+                                            fontWeight: FontWeight.bold,
+                                            fontSize: 12,
+                                          ),
+                                        ),
+                                      ],
+                                    ),
+                                  ),
+                                ],
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ),
+                  )).toList(),
+              ],
             ),
           ),
-          const SizedBox(height: AppConstants.spacingMedium),
-
-          // Paneles de información
-          Row(
-            children: [
-              Expanded(
-                child: InfoPanel(
-                  title: 'Total Ingresos',
-                  value: '\$${totalIngresos.toStringAsFixed(2)}',
-                  icon: Icons.attach_money,
-                  color: AppColors.price,
-                ),
-              ),
-              const SizedBox(width: AppConstants.spacingMedium),
-              Expanded(
-                child: InfoPanel(
-                  title: 'Pedidos',
-                  value: '$totalPedidos',
-                  icon: Icons.receipt_long,
-                  color: AppColors.accent,
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: AppConstants.spacingMedium),
-          InfoPanel(
-            title: 'Pedidos Entregados',
-            value: '$pedidosEntregados',
-            icon: Icons.check_circle,
-            color: AppColors.success,
-          ),
-          const SizedBox(height: AppConstants.spacingLarge),
-
-          // Gráfico
-          BarChartPanel(
-            data: _obtenerDatosGrafico(),
-            title: 'Ventas por Método de Pago',
-          ),
-        ],
-      ),
+        ),
+        
+        // Controles de paginación
+        PaginationControls(
+          itemsPerPage: _itemsPerPage,
+          currentPage: totalPaginas > 0 ? _paginaActual : 1,
+          totalPages: totalPaginas,
+          totalItems: totalPedidosFiltradosCount,
+          onItemsPerPageChanged: (int nuevoValor) {
+            setState(() {
+              _itemsPerPage = nuevoValor;
+              _paginaActual = 1; // Resetear a la primera página
+            });
+          },
+          onPageChanged: (int nuevaPagina) {
+            setState(() {
+              _paginaActual = nuevaPagina;
+            });
+          },
+        ),
+      ],
     );
   }
 }
