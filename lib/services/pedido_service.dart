@@ -250,6 +250,15 @@ class PedidoService {
     
     try {
       final db = await DBHelper.db;
+      
+      // Asegurar que la columna fotoTransferenciaPath existe antes de actualizar
+      final tableInfo = await db.rawQuery('PRAGMA table_info(pedidos)');
+      final columnNames = tableInfo.map((row) => row['name'] as String).toList();
+      
+      if (!columnNames.contains('fotoTransferenciaPath')) {
+        await db.execute('ALTER TABLE pedidos ADD COLUMN fotoTransferenciaPath TEXT DEFAULT NULL');
+      }
+      
       return await db.update(
         'pedidos',
         pedido.toMap(),
@@ -277,12 +286,17 @@ class PedidoService {
   }
 
   /// Actualiza el estado de pago de un pedido
-  static Future<int> actualizarEstadoPago(int id, String nuevoEstadoPago) async {
+  /// Opcionalmente puede actualizar la ruta de la foto de transferencia
+  static Future<int> actualizarEstadoPago(int id, String nuevoEstadoPago, {String? fotoTransferenciaPath}) async {
     try {
       final db = await DBHelper.db;
+      final updateData = <String, dynamic>{'estadoPago': nuevoEstadoPago};
+      if (fotoTransferenciaPath != null) {
+        updateData['fotoTransferenciaPath'] = fotoTransferenciaPath;
+      }
       return await db.update(
         'pedidos',
-        {'estadoPago': nuevoEstadoPago},
+        updateData,
         where: 'id = ?',
         whereArgs: [id],
       );

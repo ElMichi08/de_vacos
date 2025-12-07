@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_slidable/flutter_slidable.dart';
-import 'package:intl/intl.dart';
 import '../core/constants/app_colors.dart';
 import '../core/constants/app_constants.dart';
 import '../services/pedido_service.dart';
@@ -9,6 +8,8 @@ import '../widgets/back_header_widget.dart';
 import '../widgets/order_detail_modal.dart';
 import '../widgets/date_filter_widget.dart';
 import '../widgets/pagination_controls.dart';
+import '../widgets/payment_modal.dart';
+import '../widgets/transfer_payment_modal.dart';
 import 'new_order_screen.dart';
 import 'edit_order_screen.dart';
 
@@ -150,6 +151,8 @@ class _OrderListScreenState extends State<OrderListScreen> {
 
   /// Cambia el estado de pago de forma secuencial
   /// Pendiente → Cobrado
+  /// Si es efectivo, muestra modal para calcular cambio
+  /// Si es transferencia, muestra modal para tomar foto de la transferencia
   Future<void> _cambiarEstadoPagoSecuencial(Pedido pedido) async {
     // Validar que el pedido no esté cancelado o cerrado
     if (pedido.estado == 'Cancelada' || 
@@ -162,26 +165,84 @@ class _OrderListScreenState extends State<OrderListScreen> {
       return; // Solo se puede cambiar si está pendiente
     }
     
-    try {
-      await PedidoService.actualizarEstadoPago(pedido.id!, 'Cobrado');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('Estado de pago cambiado a Cobrado'),
-            backgroundColor: AppColors.success,
-            duration: Duration(seconds: 2),
-          ),
-        );
-        _cargarPedidos();
+    // Si es efectivo, mostrar modal de cobro con cálculo de cambio
+    if (pedido.metodoPago == 'Efectivo') {
+      final resultado = await showDialog<bool>(
+        context: context,
+        barrierColor: Colors.black.withValues(alpha: 0.7),
+        builder: (context) => PaymentModal(
+          totalAPagar: pedido.total,
+          cliente: pedido.cliente,
+          numeroOrden: pedido.numeroOrden,
+        ),
+      );
+      
+      // Si el usuario confirmó el cobro (retornó true)
+      if (resultado == true && mounted) {
+        try {
+          await PedidoService.actualizarEstadoPago(pedido.id!, 'Cobrado');
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Pago registrado correctamente'),
+                backgroundColor: AppColors.success,
+                duration: Duration(seconds: 2),
+              ),
+            );
+            _cargarPedidos();
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error: ${e.toString()}'),
+                backgroundColor: AppColors.error,
+              ),
+            );
+          }
+        }
       }
-    } catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Error: ${e.toString()}'),
-            backgroundColor: AppColors.error,
-          ),
-        );
+    } else {
+      // Si es transferencia, mostrar modal para tomar foto
+      final resultado = await showDialog<Map<String, dynamic>?>(
+        context: context,
+        barrierColor: Colors.black.withValues(alpha: 0.7),
+        builder: (context) => TransferPaymentModal(
+          totalAPagar: pedido.total,
+          cliente: pedido.cliente,
+          numeroOrden: pedido.numeroOrden,
+        ),
+      );
+      
+      // Si el usuario confirmó el cobro (retornó Map con cobrado: true y fotoPath)
+      if (resultado != null && resultado['cobrado'] == true && mounted) {
+        try {
+          final fotoPath = resultado['fotoPath'] as String?;
+          await PedidoService.actualizarEstadoPago(
+            pedido.id!,
+            'Cobrado',
+            fotoTransferenciaPath: fotoPath,
+          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(
+                content: Text('Pago registrado correctamente'),
+                backgroundColor: AppColors.success,
+                duration: Duration(seconds: 2),
+              ),
+            );
+            _cargarPedidos();
+          }
+        } catch (e) {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: Text('Error: ${e.toString()}'),
+                backgroundColor: AppColors.error,
+              ),
+            );
+          }
+        }
       }
     }
   }

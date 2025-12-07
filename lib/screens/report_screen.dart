@@ -10,6 +10,7 @@ import '../widgets/filterable_info_panel.dart';
 import '../widgets/date_filter_widget.dart';
 import '../widgets/order_detail_modal.dart';
 import '../widgets/pagination_controls.dart';
+import '../widgets/transfer_photo_viewer_modal.dart';
 
 class ReportScreen extends StatefulWidget {
   const ReportScreen({super.key});
@@ -321,6 +322,7 @@ class _ReportScreenState extends State<ReportScreen> {
                             _filtroMetodoPago = _filtroMetodoPago == 'Transferencia' 
                                 ? null 
                                 : 'Transferencia';
+                            _paginaActual = 1; // Resetear a la primera página cuando cambia el filtro
                           });
                         },
                       ),
@@ -338,6 +340,7 @@ class _ReportScreenState extends State<ReportScreen> {
                             _filtroMetodoPago = _filtroMetodoPago == 'Efectivo' 
                                 ? null 
                                 : 'Efectivo';
+                            _paginaActual = 1; // Resetear a la primera página cuando cambia el filtro
                           });
                         },
                       ),
@@ -461,46 +464,80 @@ class _ReportScreenState extends State<ReportScreen> {
                                 spacing: 8,
                                 runSpacing: 8,
                                 children: [
-                                  Container(
-                                    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-                                    decoration: BoxDecoration(
-                                      color: pedido.metodoPago == 'Transferencia'
-                                          ? const Color(0xFF64B5F6).withValues(alpha: 0.2)
-                                          : const Color(0xFF81C784).withValues(alpha: 0.2),
-                                      borderRadius: BorderRadius.circular(8),
-                                      border: Border.all(
-                                        color: pedido.metodoPago == 'Transferencia'
-                                            ? const Color(0xFF64B5F6)
-                                            : const Color(0xFF81C784),
-                                        width: 1.5,
-                                      ),
-                                    ),
-                                    child: Row(
-                                      mainAxisSize: MainAxisSize.min,
-                                      children: [
-                                        Icon(
-                                          pedido.metodoPago == 'Transferencia'
-                                              ? Icons.account_balance_wallet
-                                              : Icons.money,
-                                          size: 14,
-                                          color: pedido.metodoPago == 'Transferencia'
-                                              ? const Color(0xFF64B5F6)
-                                              : const Color(0xFF81C784),
-                                        ),
-                                        const SizedBox(width: 4),
-                                        Text(
-                                          pedido.metodoPago,
-                                          style: TextStyle(
-                                            color: pedido.metodoPago == 'Transferencia'
-                                                ? const Color(0xFF64B5F6)
-                                                : const Color(0xFF81C784),
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 12,
+                                  // Botón de método de pago (clickeable si es Transferencia)
+                                  pedido.metodoPago == 'Transferencia'
+                                      ? InkWell(
+                                          onTap: () {
+                                            showDialog(
+                                              context: context,
+                                              barrierColor: Colors.black.withValues(alpha: 0.7),
+                                              builder: (context) => TransferPhotoViewerModal(
+                                                pedido: pedido,
+                                              ),
+                                            );
+                                          },
+                                          borderRadius: BorderRadius.circular(8),
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                            decoration: BoxDecoration(
+                                              color: const Color(0xFF64B5F6).withValues(alpha: 0.2),
+                                              borderRadius: BorderRadius.circular(8),
+                                              border: Border.all(
+                                                color: const Color(0xFF64B5F6),
+                                                width: 1.5,
+                                              ),
+                                            ),
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                const Icon(
+                                                  Icons.account_balance_wallet,
+                                                  size: 14,
+                                                  color: Color(0xFF64B5F6),
+                                                ),
+                                                const SizedBox(width: 4),
+                                                const Text(
+                                                  'Transferencia',
+                                                  style: TextStyle(
+                                                    color: Color(0xFF64B5F6),
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                              ],
+                                            ),
+                                          ),
+                                        )
+                                      : Container(
+                                          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                                          decoration: BoxDecoration(
+                                            color: const Color(0xFF81C784).withValues(alpha: 0.2),
+                                            borderRadius: BorderRadius.circular(8),
+                                            border: Border.all(
+                                              color: const Color(0xFF81C784),
+                                              width: 1.5,
+                                            ),
+                                          ),
+                                          child: Row(
+                                            mainAxisSize: MainAxisSize.min,
+                                            children: [
+                                              const Icon(
+                                                Icons.money,
+                                                size: 14,
+                                                color: Color(0xFF81C784),
+                                              ),
+                                              const SizedBox(width: 4),
+                                              const Text(
+                                                'Efectivo',
+                                                style: TextStyle(
+                                                  color: Color(0xFF81C784),
+                                                  fontWeight: FontWeight.bold,
+                                                  fontSize: 12,
+                                                ),
+                                              ),
+                                            ],
                                           ),
                                         ),
-                                      ],
-                                    ),
-                                  ),
                                   Container(
                                     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
                                     decoration: BoxDecoration(
@@ -566,4 +603,3 @@ class _ReportScreenState extends State<ReportScreen> {
     );
   }
 }
-

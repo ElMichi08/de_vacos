@@ -14,6 +14,7 @@ class Pedido {
   final int envasesLlevar;
   final String notas;
   final bool cancelado; // Soft delete
+  final String? fotoTransferenciaPath; // Ruta de la foto de transferencia
 
   Pedido({
     this.id,
@@ -29,6 +30,7 @@ class Pedido {
     this.envasesLlevar = 0,
     this.notas = '',
     this.cancelado = false,
+    this.fotoTransferenciaPath,
   });
 
   Map<String, dynamic> toMap() {
@@ -46,6 +48,7 @@ class Pedido {
       'envasesLlevar': envasesLlevar,
       'notas': notas,
       'cancelado': cancelado ? 1 : 0,
+      'fotoTransferenciaPath': fotoTransferenciaPath,
     };
   }
 
@@ -64,6 +67,7 @@ class Pedido {
       envasesLlevar: map['envasesLlevar'] ?? 0,
       notas: map['notas'] ?? '',
       cancelado: (map['cancelado'] ?? 0) == 1,
+      fotoTransferenciaPath: map['fotoTransferenciaPath'],
     );
   }
 

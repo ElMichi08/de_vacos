@@ -8,7 +8,7 @@ import '../../models/pedido.dart';
 
 class DBHelper {
   static Database? _db;
-  static const int _versionDb = 4; // Incrementado para soportar soft delete en productos
+  static const int _versionDb = 5; // Incrementado para agregar fotoTransferenciaPath en pedidos
   static bool _initialized = false;
 
   /// Inicializa el databaseFactory para plataformas de escritorio
@@ -68,6 +68,9 @@ class DBHelper {
             await db.execute('ALTER TABLE pedidos ADD COLUMN cancelado INTEGER DEFAULT 0');
             await db.execute('UPDATE pedidos SET cancelado = 0 WHERE cancelado IS NULL');
           }
+          if (!pedidosColumnNames.contains('fotoTransferenciaPath')) {
+            await db.execute('ALTER TABLE pedidos ADD COLUMN fotoTransferenciaPath TEXT DEFAULT NULL');
+          }
 
           // Verificar columnas de productos (variantes y acompañantes)
           final productosTableInfo = await db.rawQuery('PRAGMA table_info(productos)');
@@ -123,7 +126,8 @@ class DBHelper {
         total REAL NOT NULL,
         envasesLlevar INTEGER DEFAULT 0,
         notas TEXT DEFAULT '',
-        cancelado INTEGER DEFAULT 0
+        cancelado INTEGER DEFAULT 0,
+        fotoTransferenciaPath TEXT DEFAULT NULL
       )
     ''');
 
@@ -140,6 +144,19 @@ class DBHelper {
   }
 
   static Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    // Migración a versión 5: agregar campo fotoTransferenciaPath a pedidos
+    if (oldVersion < 5) {
+      try {
+        final tableInfo = await db.rawQuery('PRAGMA table_info(pedidos)');
+        final columnNames = tableInfo.map((row) => row['name'] as String).toList();
+        
+        if (!columnNames.contains('fotoTransferenciaPath')) {
+          await db.execute('ALTER TABLE pedidos ADD COLUMN fotoTransferenciaPath TEXT DEFAULT NULL');
+        }
+      } catch (e) {
+        debugPrint('Error al migrar pedidos a versión 5: $e');
+      }
+    }
     // Migración a versión 4: agregar campo cancelado a productos
     if (oldVersion < 4) {
       try {
@@ -202,8 +219,8 @@ class DBHelper {
         await db.execute('DROP TABLE pedidos');
         await _onCreate(db, newVersion);
         await db.execute('''
-          INSERT INTO pedidos (id, numeroOrden, cliente, celular, metodoPago, estado, estadoPago, productos, fecha, total, envasesLlevar, notas, cancelado)
-          SELECT id, COALESCE(id, 0) as numeroOrden, cliente, celular, metodoPago, estado, COALESCE(estadoPago, 'Pendiente') as estadoPago, productos, fecha, total, envasesLlevar, COALESCE(notas, '') as notas, 0 as cancelado
+          INSERT INTO pedidos (id, numeroOrden, cliente, celular, metodoPago, estado, estadoPago, productos, fecha, total, envasesLlevar, notas, cancelado, fotoTransferenciaPath)
+          SELECT id, COALESCE(id, 0) as numeroOrden, cliente, celular, metodoPago, estado, COALESCE(estadoPago, 'Pendiente') as estadoPago, productos, fecha, total, envasesLlevar, COALESCE(notas, '') as notas, 0 as cancelado, NULL as fotoTransferenciaPath
           FROM pedidos_backup
         ''');
         await db.execute('DROP TABLE pedidos_backup');
@@ -265,6 +282,15 @@ class DBHelper {
     }
     try {
       final dbClient = await db;
+      
+      // Asegurar que la columna fotoTransferenciaPath existe antes de insertar
+      final tableInfo = await dbClient.rawQuery('PRAGMA table_info(pedidos)');
+      final columnNames = tableInfo.map((row) => row['name'] as String).toList();
+      
+      if (!columnNames.contains('fotoTransferenciaPath')) {
+        await dbClient.execute('ALTER TABLE pedidos ADD COLUMN fotoTransferenciaPath TEXT DEFAULT NULL');
+      }
+      
       return await dbClient.insert('pedidos', pedido.toMap());
     } catch (e) {
       throw Exception('Error al insertar pedido: $e');
