@@ -4,26 +4,26 @@ import '../core/constants/app_colors.dart';
 import '../core/constants/app_constants.dart';
 
 /// Widget reutilizable para filtrar por fecha o rango de fechas
-/// 
+///
 /// Permite seleccionar un día específico o un rango de fechas.
 /// Notifica los cambios a través de callbacks.
 class DateFilterWidget extends StatefulWidget {
   /// Fecha de inicio del filtro
   final DateTime fechaInicio;
-  
+
   /// Fecha de fin del filtro
   final DateTime fechaFin;
-  
+
   /// Callback que se ejecuta cuando cambian las fechas
   /// Recibe la nueva fecha de inicio y fin
   final void Function(DateTime fechaInicio, DateTime fechaFin) onFechasChanged;
-  
+
   /// Si está inicialmente expandido
   final bool initiallyExpanded;
-  
+
   /// Fecha mínima permitida (por defecto 2020)
   final DateTime? firstDate;
-  
+
   /// Fecha máxima permitida (por defecto hoy)
   final DateTime? lastDate;
 
@@ -50,21 +50,6 @@ class _DateFilterWidgetState extends State<DateFilterWidget> {
     _mostrarFiltroFecha = widget.initiallyExpanded;
   }
 
-  /// Muestra el tema oscuro para el DatePicker
-  Theme _buildDatePickerTheme(BuildContext context) {
-    return Theme(
-      data: Theme.of(context).copyWith(
-        colorScheme: const ColorScheme.dark(
-          primary: AppColors.accent,
-          onPrimary: Colors.white,
-          surface: AppColors.cardBackground,
-          onSurface: Colors.white,
-        ),
-      ),
-      child: Container(),
-    );
-  }
-
   /// Selecciona un día específico (establece inicio y fin en el mismo día)
   Future<void> _seleccionarFecha() async {
     final fecha = await showDatePicker(
@@ -75,7 +60,7 @@ class _DateFilterWidgetState extends State<DateFilterWidget> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.dark(
+            colorScheme: ColorScheme.dark(
               primary: AppColors.accent,
               onPrimary: Colors.white,
               surface: AppColors.cardBackground,
@@ -102,7 +87,7 @@ class _DateFilterWidgetState extends State<DateFilterWidget> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.dark(
+            colorScheme: ColorScheme.dark(
               primary: AppColors.accent,
               onPrimary: Colors.white,
               surface: AppColors.cardBackground,
@@ -117,15 +102,16 @@ class _DateFilterWidgetState extends State<DateFilterWidget> {
     if (fechaInicio != null && mounted) {
       final fechaFin = await showDatePicker(
         context: context,
-        initialDate: widget.fechaFin.isBefore(fechaInicio) 
-            ? fechaInicio 
-            : widget.fechaFin,
+        initialDate:
+            widget.fechaFin.isBefore(fechaInicio)
+                ? fechaInicio
+                : widget.fechaFin,
         firstDate: fechaInicio,
         lastDate: widget.lastDate ?? DateTime.now(),
         builder: (context, child) {
           return Theme(
             data: Theme.of(context).copyWith(
-              colorScheme: const ColorScheme.dark(
+              colorScheme: ColorScheme.dark(
                 primary: AppColors.accent,
                 onPrimary: Colors.white,
                 surface: AppColors.cardBackground,
@@ -147,14 +133,14 @@ class _DateFilterWidgetState extends State<DateFilterWidget> {
   String _formatearTextoFecha() {
     final fechaInicio = widget.fechaInicio;
     final fechaFin = widget.fechaFin;
-    
+
     // Si es el mismo día, mostrar solo una fecha
     if (fechaInicio.year == fechaFin.year &&
         fechaInicio.month == fechaFin.month &&
         fechaInicio.day == fechaFin.day) {
       return DateFormat('dd/MM/yyyy').format(fechaInicio);
     }
-    
+
     // Si es un rango, mostrar ambas fechas
     return '${DateFormat('dd/MM/yyyy').format(fechaInicio)} - ${DateFormat('dd/MM/yyyy').format(fechaFin)}';
   }
@@ -163,7 +149,8 @@ class _DateFilterWidgetState extends State<DateFilterWidget> {
   Widget build(BuildContext context) {
     return Card(
       elevation: _mostrarFiltroFecha ? 0 : AppConstants.cardElevation,
-      color: _mostrarFiltroFecha ? Colors.transparent : AppColors.cardBackground,
+      color:
+          _mostrarFiltroFecha ? Colors.transparent : AppColors.cardBackground,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppConstants.borderRadiusMedium),
       ),
@@ -176,11 +163,7 @@ class _DateFilterWidgetState extends State<DateFilterWidget> {
         },
         title: Row(
           children: [
-            const Icon(
-              Icons.calendar_today,
-              size: 18,
-              color: Colors.white70,
-            ),
+            const Icon(Icons.calendar_today, size: 18, color: Colors.white70),
             const SizedBox(width: 8),
             Expanded(
               child: Text(
@@ -242,4 +225,3 @@ class _DateFilterWidgetState extends State<DateFilterWidget> {
     );
   }
 }
-

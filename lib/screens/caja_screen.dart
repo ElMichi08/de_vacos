@@ -4,7 +4,7 @@ import '../core/constants/app_colors.dart';
 import '../core/constants/app_constants.dart';
 import '../services/caja_service.dart';
 import '../services/ventas_service.dart';
-import '../services/license_service.dart';
+import '../services/supabase_sync_service.dart';
 import '../models/caja.dart';
 import '../widgets/back_header_widget.dart';
 import '../widgets/info_panel.dart';
@@ -37,31 +37,38 @@ class _CajaScreenState extends State<CajaScreen> {
 
     try {
       // 1. Obtener movimientos manuales de la base de datos
-      final lista = await CajaService.obtenerPorFecha(_fechaInicio, fechaFin: _fechaFin);
-      
+      final lista = await CajaService.obtenerPorFecha(
+        _fechaInicio,
+        fechaFin: _fechaFin,
+      );
+
       // 2. Calcular ventas automáticas del rango de fechas
       // Si es un solo día, usar obtenerVentasDelDia, si es rango usar obtenerVentasDelRango
       double totalVentas = 0.0;
       try {
-        final esUnSoloDia = _fechaInicio.year == _fechaFin.year &&
+        final esUnSoloDia =
+            _fechaInicio.year == _fechaFin.year &&
             _fechaInicio.month == _fechaFin.month &&
             _fechaInicio.day == _fechaFin.day;
-        
+
         if (esUnSoloDia) {
           // Solo calcular ventas del día seleccionado
           totalVentas = await VentasService.obtenerVentasDelDia(_fechaInicio);
         } else {
           // Calcular ventas del rango
-          totalVentas = await VentasService.obtenerVentasDelRango(_fechaInicio, _fechaFin);
+          totalVentas = await VentasService.obtenerVentasDelRango(
+            _fechaInicio,
+            _fechaFin,
+          );
         }
       } catch (e) {
         debugPrint('Error al calcular ventas automáticas: $e');
         // Continuar sin ventas automáticas si hay error
       }
-      
+
       // 3. Crear lista combinada: primero ventas del sistema, luego movimientos manuales
       final List<Caja> movimientosCombinados = [];
-      
+
       // Agregar "Ventas del Sistema" si hay ventas
       if (totalVentas > 0) {
         // Usar la fecha de inicio del rango para el movimiento de sistema
@@ -71,7 +78,7 @@ class _CajaScreenState extends State<CajaScreen> {
           _fechaInicio.day,
           0, // Inicio del día
         );
-        
+
         final ventasSistema = Caja(
           id: null, // No tiene ID porque no está en la BD
           descripcion: 'Ventas del Sistema',
@@ -80,13 +87,13 @@ class _CajaScreenState extends State<CajaScreen> {
           fecha: fechaVentas,
           isSystemGenerated: true, // Marcar como generado por el sistema
         );
-        
+
         movimientosCombinados.add(ventasSistema);
       }
-      
+
       // Agregar movimientos manuales después
       movimientosCombinados.addAll(lista);
-      
+
       setState(() {
         movimientos = movimientosCombinados;
         isLoading = false;
@@ -118,7 +125,9 @@ class _CajaScreenState extends State<CajaScreen> {
   }
 
   double _calcularSaldo() {
-    return _calcularTotalIngresos() - _calcularTotalEgresos() - _calcularCajaChica();
+    return _calcularTotalIngresos() -
+        _calcularTotalEgresos() -
+        _calcularCajaChica();
   }
 
   Color _getTipoColor(String tipo) {
@@ -136,16 +145,19 @@ class _CajaScreenState extends State<CajaScreen> {
 
   Future<void> _agregarMovimiento() async {
     // Verificar si ya existe caja chica para la fecha
-    final cajaChicaExistente = await CajaService.obtenerCajaChicaPorFecha(_fechaInicio);
-    
+    final cajaChicaExistente = await CajaService.obtenerCajaChicaPorFecha(
+      _fechaInicio,
+    );
+
     if (!mounted) return;
-    
+
     final result = await showDialog<Caja>(
       context: context,
-      builder: (context) => _MovimientoDialog(
-        fecha: _fechaInicio,
-        cajaChicaExistente: cajaChicaExistente,
-      ),
+      builder:
+          (context) => _MovimientoDialog(
+            fecha: _fechaInicio,
+            cajaChicaExistente: cajaChicaExistente,
+          ),
     );
 
     if (result != null) {
@@ -179,7 +191,9 @@ class _CajaScreenState extends State<CajaScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('No se puede editar un movimiento generado automáticamente por el sistema'),
+            content: Text(
+              'No se puede editar un movimiento generado automáticamente por el sistema',
+            ),
             backgroundColor: AppColors.error,
           ),
         );
@@ -188,10 +202,11 @@ class _CajaScreenState extends State<CajaScreen> {
     }
     final result = await showDialog<Caja>(
       context: context,
-      builder: (context) => _MovimientoDialog(
-        fecha: movimiento.fecha,
-        movimiento: movimiento,
-      ),
+      builder:
+          (context) => _MovimientoDialog(
+            fecha: movimiento.fecha,
+            movimiento: movimiento,
+          ),
     );
 
     if (result != null) {
@@ -225,7 +240,9 @@ class _CajaScreenState extends State<CajaScreen> {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text('No se puede eliminar un movimiento generado automáticamente por el sistema'),
+            content: Text(
+              'No se puede eliminar un movimiento generado automáticamente por el sistema',
+            ),
             backgroundColor: AppColors.error,
           ),
         );
@@ -234,36 +251,37 @@ class _CajaScreenState extends State<CajaScreen> {
     }
     final confirmar = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.cardBackground,
-        title: const Text(
-          'Confirmar eliminación',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: Text(
-          '¿Estás seguro de eliminar este movimiento?',
-          style: const TextStyle(color: Colors.white70),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text(
-              'Cancelar',
-              style: TextStyle(color: Colors.white70),
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: AppColors.cardBackground,
+            title: const Text(
+              'Confirmar eliminación',
+              style: TextStyle(color: Colors.white),
             ),
-          ),
-          TextButton(
-            onPressed: () => Navigator.pop(context, true),
-            child: const Text(
-              'Eliminar',
-              style: TextStyle(color: AppColors.error),
+            content: Text(
+              '¿Estás seguro de eliminar este movimiento?',
+              style: const TextStyle(color: Colors.white70),
             ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text(
+                  'Cancelar',
+                  style: TextStyle(color: Colors.white70),
+                ),
+              ),
+              TextButton(
+                onPressed: () => Navigator.pop(context, true),
+                child: const Text(
+                  'Eliminar',
+                  style: TextStyle(color: AppColors.error),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
     );
 
-    if (confirmar == true) {
+    if (confirmar ?? false) {
       try {
         await CajaService.eliminar(movimiento.id!);
         if (mounted) {
@@ -292,57 +310,58 @@ class _CajaScreenState extends State<CajaScreen> {
     // Mostrar diálogo de confirmación
     final confirmar = await showDialog<bool>(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.cardBackground,
-        title: const Text(
-          'Cerrar Caja',
-          style: TextStyle(color: Colors.white),
-        ),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            const Text(
-              '¿Estás seguro de cerrar la caja?',
-              style: TextStyle(color: Colors.white70),
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: AppColors.cardBackground,
+            title: const Text(
+              'Cerrar Caja',
+              style: TextStyle(color: Colors.white),
             ),
-            const SizedBox(height: 12),
-            const Text(
-              'Se enviarán los datos de ventas al servidor para el rango:',
-              style: TextStyle(color: Colors.white70, fontSize: 12),
+            content: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                const Text(
+                  '¿Estás seguro de cerrar la caja?',
+                  style: TextStyle(color: Colors.white70),
+                ),
+                const SizedBox(height: 12),
+                const Text(
+                  'Se enviarán los datos de ventas al servidor para el rango:',
+                  style: TextStyle(color: Colors.white70, fontSize: 12),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  _fechaInicio.year == _fechaFin.year &&
+                          _fechaInicio.month == _fechaFin.month &&
+                          _fechaInicio.day == _fechaFin.day
+                      ? DateFormat('dd/MM/yyyy').format(_fechaInicio)
+                      : '${DateFormat('dd/MM/yyyy').format(_fechaInicio)} - ${DateFormat('dd/MM/yyyy').format(_fechaFin)}',
+                  style: TextStyle(
+                    color: AppColors.accent,
+                    fontSize: 14,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ],
             ),
-            const SizedBox(height: 4),
-            Text(
-              _fechaInicio.year == _fechaFin.year &&
-                      _fechaInicio.month == _fechaFin.month &&
-                      _fechaInicio.day == _fechaFin.day
-                  ? DateFormat('dd/MM/yyyy').format(_fechaInicio)
-                  : '${DateFormat('dd/MM/yyyy').format(_fechaInicio)} - ${DateFormat('dd/MM/yyyy').format(_fechaFin)}',
-              style: const TextStyle(
-                color: AppColors.accent,
-                fontSize: 14,
-                fontWeight: FontWeight.bold,
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context, false),
+                child: const Text(
+                  'Cancelar',
+                  style: TextStyle(color: Colors.white70),
+                ),
               ),
-            ),
-          ],
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context, false),
-            child: const Text(
-              'Cancelar',
-              style: TextStyle(color: Colors.white70),
-            ),
+              ElevatedButton(
+                onPressed: () => Navigator.pop(context, true),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.success,
+                ),
+                child: const Text('Cerrar Caja'),
+              ),
+            ],
           ),
-          ElevatedButton(
-            onPressed: () => Navigator.pop(context, true),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.success,
-            ),
-            child: const Text('Cerrar Caja'),
-          ),
-        ],
-      ),
     );
 
     if (confirmar != true) return;
@@ -352,11 +371,9 @@ class _CajaScreenState extends State<CajaScreen> {
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(
-        child: CircularProgressIndicator(
-          color: AppColors.accent,
-        ),
-      ),
+      builder:
+          (context) =>
+              Center(child: CircularProgressIndicator(color: AppColors.accent)),
     );
 
     try {
@@ -377,7 +394,7 @@ class _CajaScreenState extends State<CajaScreen> {
       );
 
       // Enviar cierre de caja a Supabase
-      final exito = await LicenseService.enviarCierreCaja(
+      final exito = await SupabaseSyncService.enviarCierreCaja(
         fechaInicio: fechaInicio,
         fechaFin: fechaFin,
       );
@@ -391,7 +408,9 @@ class _CajaScreenState extends State<CajaScreen> {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('✅ Caja cerrada exitosamente. Datos enviados al servidor.'),
+              content: Text(
+                '✅ Caja cerrada exitosamente. Datos enviados al servidor.',
+              ),
               backgroundColor: AppColors.success,
               duration: Duration(seconds: 3),
             ),
@@ -434,7 +453,7 @@ class _CajaScreenState extends State<CajaScreen> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.dark(
+            colorScheme: ColorScheme.dark(
               primary: AppColors.accent,
               onPrimary: Colors.white,
               surface: AppColors.cardBackground,
@@ -464,7 +483,7 @@ class _CajaScreenState extends State<CajaScreen> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.dark(
+            colorScheme: ColorScheme.dark(
               primary: AppColors.accent,
               onPrimary: Colors.white,
               surface: AppColors.cardBackground,
@@ -486,7 +505,7 @@ class _CajaScreenState extends State<CajaScreen> {
         builder: (context, child) {
           return Theme(
             data: Theme.of(context).copyWith(
-              colorScheme: const ColorScheme.dark(
+              colorScheme: ColorScheme.dark(
                 primary: AppColors.accent,
                 onPrimary: Colors.white,
                 surface: AppColors.cardBackground,
@@ -524,7 +543,10 @@ class _CajaScreenState extends State<CajaScreen> {
             icon: const Icon(Icons.lock, color: Colors.white),
             label: const Text(
               'Cerrar Caja',
-              style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+              style: TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+              ),
             ),
             heroTag: 'cerrar_caja',
           ),
@@ -533,8 +555,8 @@ class _CajaScreenState extends State<CajaScreen> {
           FloatingActionButton(
             onPressed: _agregarMovimiento,
             backgroundColor: AppColors.primary,
-            child: const Icon(Icons.add, color: Colors.white),
             heroTag: 'agregar_movimiento',
+            child: const Icon(Icons.add, color: Colors.white),
           ),
         ],
       ),
@@ -543,9 +565,7 @@ class _CajaScreenState extends State<CajaScreen> {
 
   Widget _buildBody() {
     if (isLoading) {
-      return const Center(
-        child: CircularProgressIndicator(color: AppColors.accent),
-      );
+      return Center(child: CircularProgressIndicator(color: AppColors.accent));
     }
 
     if (errorMessage != null) {
@@ -591,7 +611,11 @@ class _CajaScreenState extends State<CajaScreen> {
                 padding: const EdgeInsets.all(AppConstants.paddingSmall),
                 child: Row(
                   children: [
-                    const Icon(Icons.calendar_today, color: AppColors.accent, size: 20),
+                    Icon(
+                      Icons.calendar_today,
+                      color: AppColors.accent,
+                      size: 20,
+                    ),
                     const SizedBox(width: 8),
                     Expanded(
                       child: Text(
@@ -600,18 +624,35 @@ class _CajaScreenState extends State<CajaScreen> {
                                 _fechaInicio.day == _fechaFin.day
                             ? 'Fecha: ${DateFormat('dd/MM/yyyy').format(_fechaInicio)}'
                             : 'Rango: ${DateFormat('dd/MM/yyyy').format(_fechaInicio)} - ${DateFormat('dd/MM/yyyy').format(_fechaFin)}',
-                        style: const TextStyle(color: Colors.white70, fontSize: 14),
+                        style: const TextStyle(
+                          color: Colors.white70,
+                          fontSize: 14,
+                        ),
                       ),
                     ),
                     TextButton.icon(
                       onPressed: _seleccionarFecha,
-                      icon: const Icon(Icons.calendar_today, size: 16, color: AppColors.accent),
-                      label: const Text('Día', style: TextStyle(color: AppColors.accent)),
+                      icon: Icon(
+                        Icons.calendar_today,
+                        size: 16,
+                        color: AppColors.accent,
+                      ),
+                      label: Text(
+                        'Día',
+                        style: TextStyle(color: AppColors.accent),
+                      ),
                     ),
                     TextButton.icon(
                       onPressed: _seleccionarRangoFechas,
-                      icon: const Icon(Icons.date_range, size: 16, color: AppColors.accent),
-                      label: const Text('Rango', style: TextStyle(color: AppColors.accent)),
+                      icon: Icon(
+                        Icons.date_range,
+                        size: 16,
+                        color: AppColors.accent,
+                      ),
+                      label: Text(
+                        'Rango',
+                        style: TextStyle(color: AppColors.accent),
+                      ),
                     ),
                   ],
                 ),
@@ -642,7 +683,9 @@ class _CajaScreenState extends State<CajaScreen> {
                 ),
               ),
               Padding(
-                padding: const EdgeInsets.symmetric(horizontal: AppConstants.paddingMedium),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: AppConstants.paddingMedium,
+                ),
                 child: Row(
                   children: [
                     Expanded(
@@ -671,118 +714,140 @@ class _CajaScreenState extends State<CajaScreen> {
 
         // Lista de movimientos
         Expanded(
-          child: movimientos.isEmpty
-              ? const Center(
-                  child: Column(
-                    mainAxisAlignment: MainAxisAlignment.center,
-                    children: [
-                      Icon(Icons.account_balance_wallet, size: 64, color: Colors.white38),
-                      SizedBox(height: 16),
-                      Text(
-                        'No hay movimientos',
-                        style: TextStyle(color: Colors.white70, fontSize: 18),
-                      ),
-                      SizedBox(height: 8),
-                      Text(
-                        'Toca el botón + para agregar uno',
-                        style: TextStyle(color: Colors.white54, fontSize: 14),
-                      ),
-                    ],
+          child:
+              movimientos.isEmpty
+                  ? Center(
+                    child: Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Icon(
+                          Icons.account_balance_wallet,
+                          size: 64,
+                          color: Colors.white38,
+                        ),
+                        SizedBox(height: 16),
+                        Text(
+                          'No hay movimientos',
+                          style: TextStyle(color: Colors.white70, fontSize: 18),
+                        ),
+                        SizedBox(height: 8),
+                        Text(
+                          'Toca el botón + para agregar uno',
+                          style: TextStyle(color: Colors.white54, fontSize: 14),
+                        ),
+                      ],
+                    ),
+                  )
+                  : ListView.builder(
+                    padding: const EdgeInsets.all(AppConstants.paddingMedium),
+                    itemCount: movimientos.length,
+                    itemBuilder: (context, index) {
+                      final movimiento = movimientos[index];
+                      return Card(
+                        elevation: AppConstants.cardElevation,
+                        color: AppColors.cardBackground,
+                        margin: const EdgeInsets.only(
+                          bottom: AppConstants.spacingMedium,
+                        ),
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.all(
+                            AppConstants.paddingMedium,
+                          ),
+                          leading: Container(
+                            padding: const EdgeInsets.all(8),
+                            decoration: BoxDecoration(
+                              color: _getTipoColor(
+                                movimiento.tipo,
+                              ).withValues(alpha: 0.2),
+                              borderRadius: BorderRadius.circular(8),
+                            ),
+                            child: Icon(
+                              movimiento.tipo == 'Ingreso'
+                                  ? Icons.arrow_downward
+                                  : movimiento.tipo == 'Egreso'
+                                  ? Icons.arrow_upward
+                                  : Icons.account_balance_wallet,
+                              color: _getTipoColor(movimiento.tipo),
+                            ),
+                          ),
+                          title: Text(
+                            movimiento.descripcion,
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              const SizedBox(height: 4),
+                              Text(
+                                movimiento.tipo,
+                                style: TextStyle(
+                                  color: _getTipoColor(movimiento.tipo),
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              Text(
+                                DateFormat('HH:mm').format(movimiento.fecha),
+                                style: const TextStyle(color: Colors.white54),
+                              ),
+                            ],
+                          ),
+                          trailing: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Text(
+                                '\$${movimiento.valor.toStringAsFixed(2)}',
+                                style: TextStyle(
+                                  color: _getTipoColor(movimiento.tipo),
+                                  fontSize: 18,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                              // Solo mostrar botones de editar/eliminar si NO es generado por el sistema
+                              if (!movimiento.isSystemGenerated)
+                                PopupMenuButton(
+                                  iconColor: Colors.white,
+                                  color: AppColors.cardBackground,
+                                  itemBuilder:
+                                      (context) => [
+                                        const PopupMenuItem(
+                                          value: 'editar',
+                                          child: Text(
+                                            'Editar',
+                                            style: TextStyle(
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                        if (movimiento.tipo != 'Caja Chica')
+                                          const PopupMenuItem(
+                                            value: 'eliminar',
+                                            child: Text(
+                                              'Eliminar',
+                                              style: TextStyle(
+                                                color: AppColors.error,
+                                              ),
+                                            ),
+                                          ),
+                                      ],
+                                  onSelected: (value) {
+                                    if (value == 'editar') {
+                                      _editarMovimiento(movimiento);
+                                    } else if (value == 'eliminar') {
+                                      _eliminarMovimiento(movimiento);
+                                    }
+                                  },
+                                ),
+                            ],
+                          ),
+                        ),
+                      );
+                    },
                   ),
-                )
-              : ListView.builder(
-                  padding: const EdgeInsets.all(AppConstants.paddingMedium),
-                  itemCount: movimientos.length,
-                  itemBuilder: (context, index) {
-                    final movimiento = movimientos[index];
-                    return Card(
-                      elevation: AppConstants.cardElevation,
-                      color: AppColors.cardBackground,
-                      margin: const EdgeInsets.only(bottom: AppConstants.spacingMedium),
-                      child: ListTile(
-                        contentPadding: const EdgeInsets.all(AppConstants.paddingMedium),
-                        leading: Container(
-                          padding: const EdgeInsets.all(8),
-                          decoration: BoxDecoration(
-                            color: _getTipoColor(movimiento.tipo).withValues(alpha: 0.2),
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Icon(
-                            movimiento.tipo == 'Ingreso'
-                                ? Icons.arrow_downward
-                                : movimiento.tipo == 'Egreso'
-                                    ? Icons.arrow_upward
-                                    : Icons.account_balance_wallet,
-                            color: _getTipoColor(movimiento.tipo),
-                          ),
-                        ),
-                        title: Text(
-                          movimiento.descripcion,
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 16,
-                            fontWeight: FontWeight.bold,
-                          ),
-                        ),
-                        subtitle: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            const SizedBox(height: 4),
-                            Text(
-                              movimiento.tipo,
-                              style: TextStyle(
-                                color: _getTipoColor(movimiento.tipo),
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              DateFormat('HH:mm').format(movimiento.fecha),
-                              style: const TextStyle(color: Colors.white54),
-                            ),
-                          ],
-                        ),
-                        trailing: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            Text(
-                              '\$${movimiento.valor.toStringAsFixed(2)}',
-                              style: TextStyle(
-                                color: _getTipoColor(movimiento.tipo),
-                                fontSize: 18,
-                                fontWeight: FontWeight.bold,
-                              ),
-                            ),
-                            // Solo mostrar botones de editar/eliminar si NO es generado por el sistema
-                            if (!movimiento.isSystemGenerated)
-                              PopupMenuButton(
-                                iconColor: Colors.white,
-                                color: AppColors.cardBackground,
-                                itemBuilder: (context) => [
-                                  const PopupMenuItem(
-                                    value: 'editar',
-                                    child: Text('Editar', style: TextStyle(color: Colors.white)),
-                                  ),
-                                  if (movimiento.tipo != 'Caja Chica')
-                                    const PopupMenuItem(
-                                      value: 'eliminar',
-                                      child: Text('Eliminar', style: TextStyle(color: AppColors.error)),
-                                    ),
-                                ],
-                                onSelected: (value) {
-                                  if (value == 'editar') {
-                                    _editarMovimiento(movimiento);
-                                  } else if (value == 'eliminar') {
-                                    _eliminarMovimiento(movimiento);
-                                  }
-                                },
-                              ),
-                          ],
-                        ),
-                      ),
-                    );
-                  },
-                ),
         ),
       ],
     );
@@ -840,7 +905,7 @@ class _MovimientoDialogState extends State<_MovimientoDialog> {
       builder: (context, child) {
         return Theme(
           data: Theme.of(context).copyWith(
-            colorScheme: const ColorScheme.dark(
+            colorScheme: ColorScheme.dark(
               primary: AppColors.accent,
               onPrimary: Colors.white,
               surface: AppColors.cardBackground,
@@ -897,7 +962,9 @@ class _MovimientoDialogState extends State<_MovimientoDialog> {
                   filled: true,
                   fillColor: AppColors.background,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppConstants.borderRadius),
+                    borderRadius: BorderRadius.circular(
+                      AppConstants.borderRadius,
+                    ),
                   ),
                 ),
                 style: const TextStyle(color: Colors.white),
@@ -911,7 +978,7 @@ class _MovimientoDialogState extends State<_MovimientoDialog> {
               const SizedBox(height: 16),
               // Selector de fecha
               ListTile(
-                leading: const Icon(Icons.calendar_today, color: AppColors.accent),
+                leading: Icon(Icons.calendar_today, color: AppColors.accent),
                 title: const Text(
                   'Fecha',
                   style: TextStyle(color: Colors.white70),
@@ -920,7 +987,11 @@ class _MovimientoDialogState extends State<_MovimientoDialog> {
                   DateFormat('dd/MM/yyyy').format(_fechaSeleccionada),
                   style: const TextStyle(color: Colors.white),
                 ),
-                trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 16),
+                trailing: const Icon(
+                  Icons.arrow_forward_ios,
+                  color: Colors.white70,
+                  size: 16,
+                ),
                 onTap: _seleccionarFecha,
               ),
               const SizedBox(height: 16),
@@ -932,45 +1003,53 @@ class _MovimientoDialogState extends State<_MovimientoDialog> {
                   filled: true,
                   fillColor: AppColors.background,
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppConstants.borderRadius),
+                    borderRadius: BorderRadius.circular(
+                      AppConstants.borderRadius,
+                    ),
                   ),
                 ),
                 dropdownColor: AppColors.cardBackground,
                 style: const TextStyle(color: Colors.white),
-                items: ['Ingreso', 'Egreso', 'Caja Chica'].map((String tipo) {
-                  // Si ya existe caja chica y estamos creando nuevo (no editando), deshabilitar la opción
-                  final isDisabled = tipo == 'Caja Chica' &&
-                      widget.movimiento == null &&
-                      widget.cajaChicaExistente != null;
-                  return DropdownMenuItem<String>(
-                    value: tipo,
-                    enabled: !isDisabled,
-                    child: Text(
-                      tipo,
-                      style: TextStyle(
-                        color: isDisabled ? Colors.white38 : Colors.white,
-                      ),
-                    ),
-                  );
-                }).toList(),
-                onChanged: widget.movimiento != null && widget.movimiento!.tipo == 'Caja Chica'
-                    ? null // No permitir cambiar tipo si es caja chica existente
-                    : (value) {
-                        setState(() {
-                          _tipo = value!;
-                        });
-                      },
+                items:
+                    ['Ingreso', 'Egreso', 'Caja Chica'].map((String tipo) {
+                      // Si ya existe caja chica y estamos creando nuevo (no editando), deshabilitar la opción
+                      final isDisabled =
+                          tipo == 'Caja Chica' &&
+                          widget.movimiento == null &&
+                          widget.cajaChicaExistente != null;
+                      return DropdownMenuItem<String>(
+                        value: tipo,
+                        enabled: !isDisabled,
+                        child: Text(
+                          tipo,
+                          style: TextStyle(
+                            color: isDisabled ? Colors.white38 : Colors.white,
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                onChanged:
+                    widget.movimiento != null &&
+                            widget.movimiento!.tipo == 'Caja Chica'
+                        ? null // No permitir cambiar tipo si es caja chica existente
+                        : (value) {
+                          setState(() {
+                            _tipo = value!;
+                          });
+                        },
               ),
-              if (widget.movimiento != null && widget.movimiento!.tipo == 'Caja Chica')
-                const Padding(
+              if (widget.movimiento != null &&
+                  widget.movimiento!.tipo == 'Caja Chica')
+                Padding(
                   padding: EdgeInsets.only(top: 8),
                   child: Text(
                     'Nota: No puedes cambiar el tipo de Caja Chica',
                     style: TextStyle(color: Colors.white54, fontSize: 12),
                   ),
                 ),
-              if (widget.movimiento == null && widget.cajaChicaExistente != null)
-                const Padding(
+              if (widget.movimiento == null &&
+                  widget.cajaChicaExistente != null)
+                Padding(
                   padding: EdgeInsets.only(top: 8),
                   child: Text(
                     'Ya existe una Caja Chica para esta fecha. Puedes editarla desde la lista.',
@@ -987,11 +1066,15 @@ class _MovimientoDialogState extends State<_MovimientoDialog> {
                   fillColor: AppColors.background,
                   prefixText: '\$ ',
                   border: OutlineInputBorder(
-                    borderRadius: BorderRadius.circular(AppConstants.borderRadius),
+                    borderRadius: BorderRadius.circular(
+                      AppConstants.borderRadius,
+                    ),
                   ),
                 ),
                 style: const TextStyle(color: Colors.white),
-                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                keyboardType: const TextInputType.numberWithOptions(
+                  decimal: true,
+                ),
                 validator: (value) {
                   if (value == null || value.trim().isEmpty) {
                     return 'El valor es obligatorio';
@@ -1026,4 +1109,3 @@ class _MovimientoDialogState extends State<_MovimientoDialog> {
     );
   }
 }
-

@@ -5,6 +5,25 @@
 !lib/
 !lib/**
 
+# Tests (flutter_test)
+!test/
+!test/**
+
+# Assets (branding config, etc.)
+!assets/
+!assets/**
+
+# Documentación
+!README.md
+!AGENTS.md
+!docs/
+!docs/**
+
+# Configuración de agentes y skills
+!opencode.json
+!.agents/
+!.agents/**
+
 # Incluir logo (png o jpg)
 !logo.png
 !logo.jpg
@@ -17,15 +36,8 @@
 !pubspec.lock
 !analysis_options.yaml
 
-# Incluir README (documentación)
-!README.md
-
-# Incluir archivo de ejemplo de variables de entorno
-!.env.example
+# Referencia de variables de entorno (sin credenciales)
 !env.example
-
-# Ignorar archivo .env real (contiene credenciales)
-.env
 
 # Mantener la estructura de .gitignore
 !.gitignore

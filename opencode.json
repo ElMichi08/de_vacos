@@ -1,0 +1,14 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "agent": {
+    "build": {
+      "model": "google/antigravity-claude-opus-4-6-thinking"
+    },
+    "general": {
+      "model": "google/antigravity-claude-sonnet-4-6"
+    },
+    "explore": {
+      "model": "google/antigravity-claude-sonnet-4-6"
+    }
+  }
+}

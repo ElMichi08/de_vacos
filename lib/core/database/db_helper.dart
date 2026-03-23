@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:sqflite_common_ffi/sqflite_ffi.dart';
@@ -8,8 +9,28 @@ import '../../models/pedido.dart';
 
 class DBHelper {
   static Database? _db;
-  static const int _versionDb = 5; // Incrementado para agregar fotoTransferenciaPath en pedidos
+  static const int _versionDb = 6; // Insumos + receta_detalle
   static bool _initialized = false;
+
+  static String? _testDbPathOverride;
+  static set testDbPathOverride(String? value) {
+    _testDbPathOverride = value;
+    _db?.close();
+    _db = null;
+  }
+
+  /// Limpia y elimina la base de datos de test
+  static Future<void> deleteTestDb() async {
+    if (_testDbPathOverride != null) {
+      await _db?.close();
+      _db = null;
+      try {
+        await databaseFactory.deleteDatabase(_testDbPathOverride!);
+      } catch (e) {
+        debugPrint('Error deleting test db: $e');
+      }
+    }
+  }
 
   /// Inicializa el databaseFactory para plataformas de escritorio
   static Future<void> initialize() async {
@@ -33,17 +54,14 @@ class DBHelper {
 
   static Future<Database> _initDB() async {
     String path;
-    
-    // Obtener la ruta de la base de datos según la plataforma
-    if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
-      // Para escritorio, usar el directorio de documentos
+    if (_testDbPathOverride != null) {
+      path = _testDbPathOverride!;
+    } else if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
       final directory = await getApplicationDocumentsDirectory();
       path = path_utils.join(directory.path, 'vacos.db');
     } else {
-      // Para móvil, usar getDatabasesPath()
       path = path_utils.join(await getDatabasesPath(), 'vacos.db');
     }
-    
     return await openDatabase(
       path,
       version: _versionDb,
@@ -158,9 +176,58 @@ class DBHelper {
         isSystemGenerated INTEGER DEFAULT 0
       )
     ''');
+
+    // Tabla insumos
+    await db.execute('''
+      CREATE TABLE insumos(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre TEXT NOT NULL,
+        unidadMedida TEXT NOT NULL,
+        cantidadActual REAL NOT NULL DEFAULT 0,
+        cantidadMinima REAL NOT NULL DEFAULT 0,
+        costoUnitario REAL DEFAULT NULL,
+        cancelado INTEGER DEFAULT 0
+      )
+    ''');
+
+    // Tabla receta_detalle (producto_id, insumo_id, cantidad)
+    await db.execute('''
+      CREATE TABLE receta_detalle(
+        producto_id INTEGER NOT NULL,
+        insumo_id INTEGER NOT NULL,
+        cantidad REAL NOT NULL,
+        PRIMARY KEY (producto_id, insumo_id),
+        FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE CASCADE,
+        FOREIGN KEY (insumo_id) REFERENCES insumos(id)
+      )
+    ''');
   }
 
   static Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+    // Migración a versión 6: tablas insumos y receta_detalle
+    if (oldVersion < 6) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS insumos(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          nombre TEXT NOT NULL,
+          unidadMedida TEXT NOT NULL,
+          cantidadActual REAL NOT NULL DEFAULT 0,
+          cantidadMinima REAL NOT NULL DEFAULT 0,
+          costoUnitario REAL DEFAULT NULL,
+          cancelado INTEGER DEFAULT 0
+        )
+      ''');
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS receta_detalle(
+          producto_id INTEGER NOT NULL,
+          insumo_id INTEGER NOT NULL,
+          cantidad REAL NOT NULL,
+          PRIMARY KEY (producto_id, insumo_id),
+          FOREIGN KEY (producto_id) REFERENCES productos(id) ON DELETE CASCADE,
+          FOREIGN KEY (insumo_id) REFERENCES insumos(id)
+        )
+      ''');
+    }
     // Migración a versión 5: agregar campo fotoTransferenciaPath a pedidos
     if (oldVersion < 5) {
       try {
@@ -255,23 +322,18 @@ class DBHelper {
       final inicioDia = DateTime(hoy.year, hoy.month, hoy.day);
       final finDia = DateTime(hoy.year, hoy.month, hoy.day, 23, 59, 59, 999);
       
-      // Contar cuántos pedidos hay en el día (no cancelados)
-      // Esto garantiza que siempre obtengamos el siguiente número correcto,
-      // incluso cuando hay múltiples pedidos con el mismo número de orden
+      // Obtener el máximo número de orden generado hoy
+      // Usar MAX() garantiza que no se repitan números aunque haya pedidos anulados
       final result = await dbClient.rawQuery('''
-        SELECT COUNT(*) as totalPedidos
+        SELECT MAX(numeroOrden) as maxOrden
         FROM pedidos 
-        WHERE fecha BETWEEN ? AND ? AND cancelado = 0
+        WHERE fecha BETWEEN ? AND ?
       ''', [inicioDia.toIso8601String(), finDia.toIso8601String()]);
       
-      final totalPedidos = result.first['totalPedidos'] as int? ?? 0;
+      final maxOrden = result.first['maxOrden'] as int? ?? 0;
       
-      // Calcular el siguiente número de orden: (totalPedidos % 100) + 1
-      // Si hay 0 pedidos: (0 % 100) + 1 = 1
-      // Si hay 99 pedidos: (99 % 100) + 1 = 100
-      // Si hay 100 pedidos: (100 % 100) + 1 = 1 (reinicia)
-      // Si hay 101 pedidos: (101 % 100) + 1 = 2
-      return (totalPedidos % 100) + 1;
+      // Calcular el siguiente número de orden
+      return (maxOrden % 100) + 1;
     } catch (e) {
       throw Exception('Error al obtener siguiente número de orden: $e');
     }
@@ -345,6 +407,52 @@ class DBHelper {
     } catch (e) {
       debugPrint('Error al obtener auditoría semanal: $e');
       throw Exception('Error al obtener auditoría semanal: $e');
+    }
+  }
+
+  /// Top N productos más vendidos por cantidad en un rango de fechas (solo pedidos cobrados, no cancelados).
+  /// Retorna lista de mapas con 'nombre', 'cantidad', 'monto' (máximo [limit] elementos).
+  static Future<List<Map<String, dynamic>>> obtenerTopProductosPorVentas(
+    DateTime inicio,
+    DateTime fin,
+    {int limit = 3}
+  ) async {
+    try {
+      final dbClient = await db;
+      final inicioNorm = DateTime(inicio.year, inicio.month, inicio.day);
+      final finNorm = DateTime(fin.year, fin.month, fin.day, 23, 59, 59, 999);
+      final result = await dbClient.rawQuery('''
+        SELECT productos FROM pedidos
+        WHERE cancelado = 0 AND estadoPago = 'Cobrado'
+          AND fecha BETWEEN ? AND ?
+      ''', [inicioNorm.toIso8601String(), finNorm.toIso8601String()]);
+      final Map<String, Map<String, dynamic>> agregado = {};
+      for (final row in result) {
+        final productosJson = row['productos'] as String?;
+        if (productosJson == null) continue;
+        try {
+          final lista = jsonDecode(productosJson);
+          if (lista is! List) continue;
+          for (final p in lista) {
+            if (p is! Map<String, dynamic>) continue;
+            final nombre = (p['nombre'] as String?) ?? (p['nombreProducto'] as String?) ?? 'Producto';
+            final cantidad = (p['cantidad'] as int?) ?? 1;
+            final precio = (p['precio'] as num?)?.toDouble() ?? 0.0;
+            final monto = precio * cantidad;
+            if (!agregado.containsKey(nombre)) {
+              agregado[nombre] = {'nombre': nombre, 'cantidad': 0, 'monto': 0.0};
+            }
+            agregado[nombre]!['cantidad'] = (agregado[nombre]!['cantidad'] as int) + cantidad;
+            agregado[nombre]!['monto'] = (agregado[nombre]!['monto'] as double) + monto;
+          }
+        } catch (_) {}
+      }
+      final ordenado = agregado.values.toList()
+        ..sort((a, b) => (b['cantidad'] as int).compareTo(a['cantidad'] as int));
+      return ordenado.take(limit).map((e) => Map<String, dynamic>.from(e)).toList();
+    } catch (e) {
+      debugPrint('Error al obtener top productos: $e');
+      return [];
     }
   }
 

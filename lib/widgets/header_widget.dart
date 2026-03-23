@@ -12,18 +12,23 @@ class HeaderWidget extends StatelessWidget implements PreferredSizeWidget {
       child: Row(
         children: [
           Builder(
-            builder: (innerContext) => IconButton(
-              icon: const Icon(Icons.menu, color: Colors.white, size: 28),
-              onPressed: () {
-                Scaffold.of(innerContext).openDrawer();
-              },
-            ),
+            builder:
+                (innerContext) => IconButton(
+                  icon: const Icon(Icons.menu, color: Colors.white, size: 28),
+                  onPressed: () {
+                    Scaffold.of(innerContext).openDrawer();
+                  },
+                ),
           ),
           const SizedBox(width: 10),
-          const Icon(Icons.local_fire_department, size: 28, color: Colors.white),
+          const Icon(
+            Icons.local_fire_department,
+            size: 28,
+            color: Colors.white,
+          ),
           const SizedBox(width: 10),
           const Text(
-            "DE VACOS GRILL",
+            'DE VACOS GRILL',
             style: TextStyle(
               fontSize: 24,
               fontWeight: FontWeight.bold,
@@ -40,4 +45,3 @@ class HeaderWidget extends StatelessWidget implements PreferredSizeWidget {
   @override
   Size get preferredSize => const Size.fromHeight(65);
 }
-

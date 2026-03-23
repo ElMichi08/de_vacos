@@ -9,10 +9,7 @@ import '../services/printer/printer_result.dart';
 class OrderDetailModal extends StatelessWidget {
   final Pedido pedido;
 
-  const OrderDetailModal({
-    super.key,
-    required this.pedido,
-  });
+  const OrderDetailModal({super.key, required this.pedido});
 
   @override
   Widget build(BuildContext context) {
@@ -21,7 +18,7 @@ class OrderDetailModal extends StatelessWidget {
         maxHeight: MediaQuery.of(context).size.height * 0.9,
       ),
       padding: const EdgeInsets.all(AppConstants.paddingLarge),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(AppConstants.borderRadiusLarge),
@@ -61,7 +58,7 @@ class OrderDetailModal extends StatelessWidget {
             ),
             const Divider(color: Colors.white24),
             const SizedBox(height: AppConstants.spacingMedium),
-            
+
             _buildInfoRow('Número de orden:', '#${pedido.numeroOrden}'),
             const SizedBox(height: AppConstants.spacingSmall),
             _buildInfoRow('Cliente:', pedido.cliente),
@@ -76,20 +73,26 @@ class OrderDetailModal extends StatelessWidget {
             const SizedBox(height: AppConstants.spacingSmall),
             _buildInfoRow('Estado de pago:', pedido.estadoPago),
             const SizedBox(height: AppConstants.spacingSmall),
-            _buildInfoRow('Fecha:', DateFormat('dd/MM/yyyy HH:mm').format(pedido.fecha)),
+            _buildInfoRow(
+              'Fecha:',
+              DateFormat('dd/MM/yyyy HH:mm').format(pedido.fecha),
+            ),
             if (pedido.envasesLlevar > 0) ...[
               const SizedBox(height: AppConstants.spacingSmall),
-              _buildInfoRow('Envases a llevar:', pedido.envasesLlevar.toString()),
+              _buildInfoRow(
+                'Envases a llevar:',
+                pedido.envasesLlevar.toString(),
+              ),
             ],
             if (pedido.notas.isNotEmpty) ...[
               const SizedBox(height: AppConstants.spacingSmall),
               _buildInfoRow('Notas:', pedido.notas),
             ],
-            
+
             const SizedBox(height: AppConstants.spacingMedium),
             const Divider(color: Colors.white24),
             const SizedBox(height: AppConstants.spacingSmall),
-            
+
             const Text(
               'Productos:',
               style: TextStyle(
@@ -99,40 +102,46 @@ class OrderDetailModal extends StatelessWidget {
               ),
             ),
             const SizedBox(height: AppConstants.spacingSmall),
-            
+
             ..._obtenerProductosAgrupados(pedido.productos).map((producto) {
               final cantidad = producto['cantidad'] as int;
               final nombre = producto['nombre'] as String? ?? 'Producto';
               final precio = (producto['precio'] as num).toDouble();
-              
+
               // Construir nombre completo con detalles
               String nombreCompleto = nombre;
               final variante = producto['variante'] as String?;
               final acompanantes = producto['acompanantes'] as List?;
               final extras = producto['extras'] as List?;
-              
+
               List<String> detalles = [];
               if (variante != null && variante.isNotEmpty) {
                 detalles.add(variante);
               }
               if (acompanantes != null && acompanantes.isNotEmpty) {
-                final acompanantesStr = acompanantes.map((a) {
-                  final nombreAcomp = a['nombre'] as String? ?? '';
-                  final cantAcomp = a['cantidad'] as int? ?? 1;
-                  return cantAcomp > 1 ? '$nombreAcomp x$cantAcomp' : nombreAcomp;
-                }).join(', ');
+                final acompanantesStr = acompanantes
+                    .map((a) {
+                      final nombreAcomp = a['nombre'] as String? ?? '';
+                      final cantAcomp = a['cantidad'] as int? ?? 1;
+                      return cantAcomp > 1
+                          ? '$nombreAcomp x$cantAcomp'
+                          : nombreAcomp;
+                    })
+                    .join(', ');
                 detalles.add(acompanantesStr);
               }
               if (extras != null && extras.isNotEmpty) {
                 detalles.add(extras.join(', '));
               }
-              
+
               if (detalles.isNotEmpty) {
                 nombreCompleto = '$nombreCompleto (${detalles.join(', ')})';
               }
-              
+
               return Padding(
-                padding: const EdgeInsets.only(bottom: AppConstants.spacingSmall),
+                padding: const EdgeInsets.only(
+                  bottom: AppConstants.spacingSmall,
+                ),
                 child: Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
                   children: [
@@ -153,11 +162,11 @@ class OrderDetailModal extends StatelessWidget {
                 ),
               );
             }),
-            
+
             const SizedBox(height: AppConstants.spacingMedium),
             const Divider(color: Colors.white24),
             const SizedBox(height: AppConstants.spacingSmall),
-            
+
             Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -186,31 +195,38 @@ class OrderDetailModal extends StatelessWidget {
   }
 
   /// Agrupa productos iguales antes de mostrar
-  List<Map<String, dynamic>> _obtenerProductosAgrupados(List<dynamic> productos) {
+  List<Map<String, dynamic>> _obtenerProductosAgrupados(
+    List<dynamic> productos,
+  ) {
     final productosAgrupados = <String, Map<String, dynamic>>{};
-    
-    for (var producto in productos) {
+
+    for (final producto in productos) {
       // Crear clave única basada en configuración
       final nombreProducto = producto['nombre'] as String? ?? 'Producto';
       final variante = producto['variante'] as String? ?? '';
       final acompanantes = producto['acompanantes'] as List?;
-      final acompanantesKey = acompanantes != null
-          ? acompanantes.map((a) => '${a['nombre']}:${a['cantidad']}').join(',')
-          : '';
+      final acompanantesKey =
+          acompanantes != null
+              ? acompanantes
+                  .map((a) => '${a['nombre']}:${a['cantidad']}')
+                  .join(',')
+              : '';
       final extras = producto['extras'] as List?;
       final extrasKey = extras != null ? extras.join(',') : '';
-      final clave = '${nombreProducto}_${variante}_${acompanantesKey}_$extrasKey';
-      
+      final clave =
+          '${nombreProducto}_${variante}_${acompanantesKey}_$extrasKey';
+
       if (productosAgrupados.containsKey(clave)) {
         // Incrementar cantidad
-        productosAgrupados[clave]!['cantidad'] = 
-            (productosAgrupados[clave]!['cantidad'] as int) + (producto['cantidad'] as int? ?? 1);
+        productosAgrupados[clave]!['cantidad'] =
+            (productosAgrupados[clave]!['cantidad'] as int) +
+            (producto['cantidad'] as int? ?? 1);
       } else {
         // Agregar nuevo producto
         productosAgrupados[clave] = Map<String, dynamic>.from(producto);
       }
     }
-    
+
     return productosAgrupados.values.toList();
   }
 
@@ -222,10 +238,7 @@ class OrderDetailModal extends StatelessWidget {
           width: 120,
           child: Text(
             label,
-            style: const TextStyle(
-              color: Colors.white70,
-              fontSize: 14,
-            ),
+            style: const TextStyle(color: Colors.white70, fontSize: 14),
           ),
         ),
         Expanded(
@@ -254,7 +267,9 @@ class OrderDetailModal extends StatelessWidget {
         if (context.mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text('Por favor espera un momento antes de imprimir nuevamente.'),
+              content: Text(
+                'Por favor espera un momento antes de imprimir nuevamente.',
+              ),
               backgroundColor: Colors.orange,
               duration: Duration(seconds: 2),
             ),
@@ -302,15 +317,16 @@ class OrderDetailModal extends StatelessWidget {
     await _ejecutarImpresion(context, printerService);
   }
 
-  Future<void> _ejecutarImpresion(BuildContext context, PrinterService printerService) async {
+  Future<void> _ejecutarImpresion(
+    BuildContext context,
+    PrinterService printerService,
+  ) async {
     // Mostrar indicador de carga
     if (!context.mounted) return;
     showDialog(
       context: context,
       barrierDismissible: false,
-      builder: (context) => const Center(
-        child: CircularProgressIndicator(),
-      ),
+      builder: (context) => const Center(child: CircularProgressIndicator()),
     );
 
     final result = await printerService.printPedido(pedido);

@@ -5,19 +5,20 @@ import '../models/producto.dart';
 import '../models/producto_variante.dart';
 import '../models/acompanante.dart';
 import '../models/extra.dart';
+import '../models/receta_detalle.dart';
+import '../models/insumo.dart';
 import '../core/constants/app_colors.dart';
 import '../core/constants/app_constants.dart';
 import '../services/image_service.dart';
+import '../services/receta_service.dart';
+import '../services/insumo_service.dart';
 
 class ProductFormWidget extends StatefulWidget {
   final Producto? producto;
-  final Function(Producto) onSave;
+  final void Function(Producto product, List<RecetaDetalle> recetaLineas)
+  onSave;
 
-  const ProductFormWidget({
-    super.key,
-    this.producto,
-    required this.onSave,
-  });
+  const ProductFormWidget({super.key, this.producto, required this.onSave});
 
   @override
   State<ProductFormWidget> createState() => _ProductFormWidgetState();
@@ -29,11 +30,13 @@ class _ProductFormWidgetState extends State<ProductFormWidget> {
   final _precioController = TextEditingController();
   String? _imagenPath;
   bool _isLoading = false;
-  
-  // Listas para gestionar variantes, acompañantes y extras
+
+  // Listas para gestionar variantes, acompañantes, extras y receta
   List<ProductoVariante> _variantes = [];
   List<Acompanante> _acompanantes = [];
   List<Extra> _extras = [];
+  List<RecetaDetalle> _recetaLineas = [];
+  List<Insumo> _insumos = [];
 
   @override
   void initState() {
@@ -42,11 +45,29 @@ class _ProductFormWidgetState extends State<ProductFormWidget> {
       _nombreController.text = widget.producto!.nombre;
       _precioController.text = widget.producto!.precio.toStringAsFixed(2);
       _imagenPath = widget.producto!.imagenPath;
-      
-      // Cargar variantes, acompañantes y extras si existen
-      _variantes = List<ProductoVariante>.from(widget.producto!.variantes ?? []);
-      _acompanantes = List<Acompanante>.from(widget.producto!.acompanantes ?? []);
+
+      _variantes = List<ProductoVariante>.from(
+        widget.producto!.variantes ?? [],
+      );
+      _acompanantes = List<Acompanante>.from(
+        widget.producto!.acompanantes ?? [],
+      );
       _extras = List<Extra>.from(widget.producto!.extras ?? []);
+    }
+    _cargarInsumosYReceta();
+  }
+
+  Future<void> _cargarInsumosYReceta() async {
+    final insumos = await InsumoService.listar();
+    List<RecetaDetalle> receta = [];
+    if (widget.producto?.id != null) {
+      receta = await RecetaService.obtenerPorProducto(widget.producto!.id!);
+    }
+    if (mounted) {
+      setState(() {
+        _insumos = insumos;
+        _recetaLineas = receta;
+      });
     }
   }
 
@@ -61,14 +82,16 @@ class _ProductFormWidgetState extends State<ProductFormWidget> {
     try {
       final ImagePicker picker = ImagePicker();
       final XFile? image = await picker.pickImage(source: ImageSource.gallery);
-      
+
       if (image != null) {
         setState(() {
           _isLoading = true;
         });
 
-        final compressedPath = await ImageService.comprimirYGuardar(File(image.path));
-        
+        final compressedPath = await ImageService.comprimirYGuardar(
+          File(image.path),
+        );
+
         setState(() {
           _imagenPath = compressedPath;
           _isLoading = false;
@@ -119,7 +142,20 @@ class _ProductFormWidgetState extends State<ProductFormWidget> {
       extras: extras,
     );
 
-    widget.onSave(producto);
+    // Receta: productoId se asigna al guardar en la pantalla
+    final recetaLineas =
+        _recetaLineas
+            .where((l) => l.cantidad > 0)
+            .map(
+              (l) => RecetaDetalle(
+                productoId: 0,
+                insumoId: l.insumoId,
+                cantidad: l.cantidad,
+              ),
+            )
+            .toList();
+
+    widget.onSave(producto, recetaLineas);
   }
 
   @override
@@ -138,50 +174,52 @@ class _ProductFormWidgetState extends State<ProductFormWidget> {
                 height: 200,
                 decoration: BoxDecoration(
                   color: AppColors.cardBackground,
-                  borderRadius: BorderRadius.circular(AppConstants.borderRadius),
-                  border: Border.all(
-                    color: AppColors.highlight,
-                    width: 2,
+                  borderRadius: BorderRadius.circular(
+                    AppConstants.borderRadius,
                   ),
+                  border: Border.all(color: AppColors.highlight, width: 2),
                 ),
-                child: _isLoading
-                    ? const Center(
-                        child: CircularProgressIndicator(
-                          color: AppColors.accent,
-                        ),
-                      )
-                    : _imagenPath != null && File(_imagenPath!).existsSync()
-                        ? ClipRRect(
-                            borderRadius: BorderRadius.circular(AppConstants.borderRadius),
-                            child: Image.file(
-                              File(_imagenPath!),
-                              fit: BoxFit.cover,
-                            ),
-                          )
-                        : const Center(
-                            child: Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: [
-                                Icon(
-                                  Icons.add_photo_alternate,
-                                  size: 64,
-                                  color: AppColors.accent,
-                                ),
-                                SizedBox(height: 8),
-                                Text(
-                                  'Toca para seleccionar imagen',
-                                  style: TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 16,
-                                  ),
-                                ),
-                              ],
-                            ),
+                child:
+                    _isLoading
+                        ? Center(
+                          child: CircularProgressIndicator(
+                            color: AppColors.accent,
                           ),
+                        )
+                        : _imagenPath != null && File(_imagenPath!).existsSync()
+                        ? ClipRRect(
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.borderRadius,
+                          ),
+                          child: Image.file(
+                            File(_imagenPath!),
+                            fit: BoxFit.cover,
+                          ),
+                        )
+                        : Center(
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(
+                                Icons.add_photo_alternate,
+                                size: 64,
+                                color: AppColors.accent,
+                              ),
+                              SizedBox(height: 8),
+                              Text(
+                                'Toca para seleccionar imagen',
+                                style: TextStyle(
+                                  color: Colors.white70,
+                                  fontSize: 16,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
               ),
             ),
             const SizedBox(height: AppConstants.spacingLarge),
-            
+
             // Campo nombre
             TextFormField(
               controller: _nombreController,
@@ -191,15 +229,21 @@ class _ProductFormWidgetState extends State<ProductFormWidget> {
                 filled: true,
                 fillColor: AppColors.cardBackground,
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppConstants.borderRadius),
+                  borderRadius: BorderRadius.circular(
+                    AppConstants.borderRadius,
+                  ),
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppConstants.borderRadius),
+                  borderRadius: BorderRadius.circular(
+                    AppConstants.borderRadius,
+                  ),
                   borderSide: const BorderSide(color: Colors.white24),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppConstants.borderRadius),
-                  borderSide: const BorderSide(color: AppColors.accent),
+                  borderRadius: BorderRadius.circular(
+                    AppConstants.borderRadius,
+                  ),
+                  borderSide: BorderSide(color: AppColors.accent),
                 ),
               ),
               style: const TextStyle(color: Colors.white),
@@ -211,7 +255,7 @@ class _ProductFormWidgetState extends State<ProductFormWidget> {
               },
             ),
             const SizedBox(height: AppConstants.spacingMedium),
-            
+
             // Campo precio
             TextFormField(
               controller: _precioController,
@@ -223,19 +267,27 @@ class _ProductFormWidgetState extends State<ProductFormWidget> {
                 prefixText: '\$ ',
                 prefixStyle: const TextStyle(color: AppColors.price),
                 border: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppConstants.borderRadius),
+                  borderRadius: BorderRadius.circular(
+                    AppConstants.borderRadius,
+                  ),
                 ),
                 enabledBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppConstants.borderRadius),
+                  borderRadius: BorderRadius.circular(
+                    AppConstants.borderRadius,
+                  ),
                   borderSide: const BorderSide(color: Colors.white24),
                 ),
                 focusedBorder: OutlineInputBorder(
-                  borderRadius: BorderRadius.circular(AppConstants.borderRadius),
-                  borderSide: const BorderSide(color: AppColors.accent),
+                  borderRadius: BorderRadius.circular(
+                    AppConstants.borderRadius,
+                  ),
+                  borderSide: BorderSide(color: AppColors.accent),
                 ),
               ),
               style: const TextStyle(color: Colors.white),
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
               validator: (value) {
                 if (value == null || value.trim().isEmpty) {
                   return 'El precio es obligatorio';
@@ -248,19 +300,22 @@ class _ProductFormWidgetState extends State<ProductFormWidget> {
               },
             ),
             const SizedBox(height: AppConstants.spacingLarge),
-            
+
             // Sección de Variantes
             _buildVariantesSection(),
             const SizedBox(height: AppConstants.spacingMedium),
-            
+
             // Sección de Acompañantes
             _buildAcompanantesSection(),
             const SizedBox(height: AppConstants.spacingMedium),
-            
+
             // Sección de Extras
             _buildExtrasSection(),
+            const SizedBox(height: AppConstants.spacingMedium),
+            // Sección Receta (insumos y cantidades)
+            _buildRecetaSection(),
             const SizedBox(height: AppConstants.spacingLarge),
-            
+
             // Botón guardar
             ElevatedButton(
               onPressed: _guardar,
@@ -268,7 +323,9 @@ class _ProductFormWidgetState extends State<ProductFormWidget> {
                 backgroundColor: AppColors.successDark,
                 padding: const EdgeInsets.symmetric(vertical: 16),
                 shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppConstants.borderRadius),
+                  borderRadius: BorderRadius.circular(
+                    AppConstants.borderRadius,
+                  ),
                 ),
               ),
               child: const Text(
@@ -297,12 +354,12 @@ class _ProductFormWidgetState extends State<ProductFormWidget> {
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         subtitle: Text(
-          _variantes.isEmpty 
+          _variantes.isEmpty
               ? 'Sin variantes (precio único)'
               : '${_variantes.length} variante(s) definida(s)',
           style: const TextStyle(color: Colors.white70, fontSize: 12),
         ),
-        leading: const Icon(Icons.straighten, color: AppColors.accent),
+        leading: Icon(Icons.straighten, color: AppColors.accent),
         iconColor: AppColors.accent,
         collapsedIconColor: Colors.white70,
         children: [
@@ -326,9 +383,9 @@ class _ProductFormWidgetState extends State<ProductFormWidget> {
                     final variante = entry.value;
                     return _buildVarianteItem(variante, index);
                   }),
-                
+
                 const SizedBox(height: AppConstants.spacingSmall),
-                
+
                 // Botón agregar variante
                 OutlinedButton.icon(
                   onPressed: () => _mostrarDialogoAgregarVariante(),
@@ -336,7 +393,7 @@ class _ProductFormWidgetState extends State<ProductFormWidget> {
                   label: const Text('Agregar variante'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.accent,
-                    side: const BorderSide(color: AppColors.accent),
+                    side: BorderSide(color: AppColors.accent),
                   ),
                 ),
               ],
@@ -354,7 +411,10 @@ class _ProductFormWidgetState extends State<ProductFormWidget> {
       child: ListTile(
         title: Text(
           variante.nombre,
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         subtitle: Text(
           '\$${variante.precio.toStringAsFixed(2)}${variante.descripcion != null ? ' - ${variante.descripcion}' : ''}',
@@ -388,184 +448,247 @@ class _ProductFormWidgetState extends State<ProductFormWidget> {
   }
 
   void _mostrarDialogoVariante({ProductoVariante? variante, int? index}) {
-    final nombreController = TextEditingController(text: variante?.nombre ?? '');
-    final precioController = TextEditingController(text: variante?.precio.toStringAsFixed(2) ?? '');
-    final descripcionController = TextEditingController(text: variante?.descripcion ?? '');
+    final nombreController = TextEditingController(
+      text: variante?.nombre ?? '',
+    );
+    final precioController = TextEditingController(
+      text: variante?.precio.toStringAsFixed(2) ?? '',
+    );
+    final descripcionController = TextEditingController(
+      text: variante?.descripcion ?? '',
+    );
     final formKey = GlobalKey<FormState>();
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.cardBackground,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppConstants.borderRadiusLarge),
-        ),
-        title: Text(
-          variante == null ? 'Agregar Variante' : 'Editar Variante',
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
-          ),
-        ),
-        content: Form(
-          key: formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Campo Nombre
-                TextFormField(
-                  controller: nombreController,
-                  decoration: InputDecoration(
-                    labelText: 'Nombre',
-                    hintText: 'Ej: 1 corte, 2 cortes, Grande',
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    hintStyle: TextStyle(color: Colors.white38),
-                    filled: true,
-                    fillColor: AppColors.background,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(AppConstants.borderRadiusMedium),
-                      borderSide: const BorderSide(color: Colors.white24),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(AppConstants.borderRadiusMedium),
-                      borderSide: const BorderSide(color: Colors.white24),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(AppConstants.borderRadiusMedium),
-                      borderSide: const BorderSide(color: AppColors.accent, width: 2),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                  ),
-                  style: const TextStyle(color: Colors.white, fontSize: 16),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'El nombre es obligatorio';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                // Campo Precio
-                TextFormField(
-                  controller: precioController,
-                  decoration: InputDecoration(
-                    labelText: 'Precio',
-                    hintText: '0.00',
-                    prefixText: '\$ ',
-                    prefixStyle: const TextStyle(color: AppColors.price, fontSize: 16),
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    hintStyle: TextStyle(color: Colors.white38),
-                    filled: true,
-                    fillColor: AppColors.background,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(AppConstants.borderRadiusMedium),
-                      borderSide: const BorderSide(color: Colors.white24),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(AppConstants.borderRadiusMedium),
-                      borderSide: const BorderSide(color: Colors.white24),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(AppConstants.borderRadiusMedium),
-                      borderSide: const BorderSide(color: AppColors.accent, width: 2),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                  ),
-                  style: const TextStyle(color: Colors.white, fontSize: 16),
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'El precio es obligatorio';
-                    }
-                    final precio = double.tryParse(value.trim());
-                    if (precio == null || precio <= 0) {
-                      return 'El precio debe ser un número positivo';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                // Campo Descripción (opcional)
-                TextFormField(
-                  controller: descripcionController,
-                  decoration: InputDecoration(
-                    labelText: 'Descripción (opcional)',
-                    hintText: 'Ej: Solo para cocina',
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    hintStyle: TextStyle(color: Colors.white38),
-                    filled: true,
-                    fillColor: AppColors.background,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(AppConstants.borderRadiusMedium),
-                      borderSide: const BorderSide(color: Colors.white24),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(AppConstants.borderRadiusMedium),
-                      borderSide: const BorderSide(color: Colors.white24),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(AppConstants.borderRadiusMedium),
-                      borderSide: const BorderSide(color: AppColors.accent, width: 2),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                  ),
-                  style: const TextStyle(color: Colors.white, fontSize: 16),
-                  maxLines: 2,
-                ),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            ),
-            child: const Text(
-              'Cancelar',
-              style: TextStyle(color: Colors.white70, fontSize: 16),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (formKey.currentState!.validate()) {
-                final nuevaVariante = ProductoVariante(
-                  nombre: nombreController.text.trim(),
-                  precio: double.parse(precioController.text.trim()),
-                  descripcion: descripcionController.text.trim().isEmpty 
-                      ? null 
-                      : descripcionController.text.trim(),
-                );
-                
-                setState(() {
-                  if (index != null) {
-                    _variantes[index] = nuevaVariante;
-                  } else {
-                    _variantes.add(nuevaVariante);
-                  }
-                });
-                
-                Navigator.pop(context);
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.accent,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppConstants.borderRadiusMedium),
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: AppColors.cardBackground,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(
+                AppConstants.borderRadiusLarge,
               ),
             ),
-            child: const Text(
-              'Guardar',
-              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+            title: Text(
+              variante == null ? 'Agregar Variante' : 'Editar Variante',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 20,
+              ),
             ),
+            content: Form(
+              key: formKey,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Campo Nombre
+                    TextFormField(
+                      controller: nombreController,
+                      decoration: InputDecoration(
+                        labelText: 'Nombre',
+                        hintText: 'Ej: 1 corte, 2 cortes, Grande',
+                        labelStyle: const TextStyle(color: Colors.white70),
+                        hintStyle: TextStyle(color: Colors.white38),
+                        filled: true,
+                        fillColor: AppColors.background,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.borderRadiusMedium,
+                          ),
+                          borderSide: const BorderSide(color: Colors.white24),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.borderRadiusMedium,
+                          ),
+                          borderSide: const BorderSide(color: Colors.white24),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.borderRadiusMedium,
+                          ),
+                          borderSide: BorderSide(
+                            color: AppColors.accent,
+                            width: 2,
+                          ),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 16,
+                        ),
+                      ),
+                      style: const TextStyle(color: Colors.white, fontSize: 16),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'El nombre es obligatorio';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    // Campo Precio
+                    TextFormField(
+                      controller: precioController,
+                      decoration: InputDecoration(
+                        labelText: 'Precio',
+                        hintText: '0.00',
+                        prefixText: '\$ ',
+                        prefixStyle: const TextStyle(
+                          color: AppColors.price,
+                          fontSize: 16,
+                        ),
+                        labelStyle: const TextStyle(color: Colors.white70),
+                        hintStyle: TextStyle(color: Colors.white38),
+                        filled: true,
+                        fillColor: AppColors.background,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.borderRadiusMedium,
+                          ),
+                          borderSide: const BorderSide(color: Colors.white24),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.borderRadiusMedium,
+                          ),
+                          borderSide: const BorderSide(color: Colors.white24),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.borderRadiusMedium,
+                          ),
+                          borderSide: BorderSide(
+                            color: AppColors.accent,
+                            width: 2,
+                          ),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 16,
+                        ),
+                      ),
+                      style: const TextStyle(color: Colors.white, fontSize: 16),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'El precio es obligatorio';
+                        }
+                        final precio = double.tryParse(value.trim());
+                        if (precio == null || precio <= 0) {
+                          return 'El precio debe ser un número positivo';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    // Campo Descripción (opcional)
+                    TextFormField(
+                      controller: descripcionController,
+                      decoration: InputDecoration(
+                        labelText: 'Descripción (opcional)',
+                        hintText: 'Ej: Solo para cocina',
+                        labelStyle: const TextStyle(color: Colors.white70),
+                        hintStyle: TextStyle(color: Colors.white38),
+                        filled: true,
+                        fillColor: AppColors.background,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.borderRadiusMedium,
+                          ),
+                          borderSide: const BorderSide(color: Colors.white24),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.borderRadiusMedium,
+                          ),
+                          borderSide: const BorderSide(color: Colors.white24),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.borderRadiusMedium,
+                          ),
+                          borderSide: BorderSide(
+                            color: AppColors.accent,
+                            width: 2,
+                          ),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 16,
+                        ),
+                      ),
+                      style: const TextStyle(color: Colors.white, fontSize: 16),
+                      maxLines: 2,
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                ),
+                child: const Text(
+                  'Cancelar',
+                  style: TextStyle(color: Colors.white70, fontSize: 16),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  if (formKey.currentState!.validate()) {
+                    final nuevaVariante = ProductoVariante(
+                      nombre: nombreController.text.trim(),
+                      precio: double.parse(precioController.text.trim()),
+                      descripcion:
+                          descripcionController.text.trim().isEmpty
+                              ? null
+                              : descripcionController.text.trim(),
+                    );
+
+                    setState(() {
+                      if (index != null) {
+                        _variantes[index] = nuevaVariante;
+                      } else {
+                        _variantes.add(nuevaVariante);
+                      }
+                    });
+
+                    Navigator.pop(context);
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.accent,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(
+                      AppConstants.borderRadiusMedium,
+                    ),
+                  ),
+                ),
+                child: const Text(
+                  'Guardar',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
@@ -586,12 +709,12 @@ class _ProductFormWidgetState extends State<ProductFormWidget> {
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         subtitle: Text(
-          _acompanantes.isEmpty 
+          _acompanantes.isEmpty
               ? 'Sin acompañantes opcionales'
               : '${_acompanantes.length} acompañante(s) definido(s)',
           style: const TextStyle(color: Colors.white70, fontSize: 12),
         ),
-        leading: const Icon(Icons.restaurant_menu, color: AppColors.accent),
+        leading: Icon(Icons.restaurant_menu, color: AppColors.accent),
         iconColor: AppColors.accent,
         collapsedIconColor: Colors.white70,
         children: [
@@ -614,16 +737,16 @@ class _ProductFormWidgetState extends State<ProductFormWidget> {
                     final acompanante = entry.value;
                     return _buildAcompananteItem(acompanante, index);
                   }),
-                
+
                 const SizedBox(height: AppConstants.spacingSmall),
-                
+
                 OutlinedButton.icon(
                   onPressed: () => _mostrarDialogoAgregarAcompanante(),
                   icon: const Icon(Icons.add, size: 18),
                   label: const Text('Agregar acompañante'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.accent,
-                    side: const BorderSide(color: AppColors.accent),
+                    side: BorderSide(color: AppColors.accent),
                   ),
                 ),
               ],
@@ -641,7 +764,10 @@ class _ProductFormWidgetState extends State<ProductFormWidget> {
       child: ListTile(
         title: Text(
           acompanante.nombre,
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         subtitle: Text(
           acompanante.precioAdicional > 0
@@ -653,12 +779,13 @@ class _ProductFormWidgetState extends State<ProductFormWidget> {
           mainAxisSize: MainAxisSize.min,
           children: [
             if (acompanante.esPredeterminado)
-              const Icon(Icons.star, color: AppColors.accent, size: 16),
+              Icon(Icons.star, color: AppColors.accent, size: 16),
             const SizedBox(width: 8),
             IconButton(
               icon: const Icon(Icons.edit, size: 20),
               color: AppColors.accent,
-              onPressed: () => _mostrarDialogoEditarAcompanante(acompanante, index),
+              onPressed:
+                  () => _mostrarDialogoEditarAcompanante(acompanante, index),
             ),
             IconButton(
               icon: const Icon(Icons.delete, size: 20),
@@ -680,7 +807,9 @@ class _ProductFormWidgetState extends State<ProductFormWidget> {
   }
 
   void _mostrarDialogoAcompanante({Acompanante? acompanante, int? index}) {
-    final nombreController = TextEditingController(text: acompanante?.nombre ?? '');
+    final nombreController = TextEditingController(
+      text: acompanante?.nombre ?? '',
+    );
     final precioController = TextEditingController(
       text: acompanante?.precioAdicional.toStringAsFixed(2) ?? '0.00',
     );
@@ -689,165 +818,236 @@ class _ProductFormWidgetState extends State<ProductFormWidget> {
 
     showDialog(
       context: context,
-      builder: (context) => StatefulBuilder(
-        builder: (context, setDialogState) => AlertDialog(
-          backgroundColor: AppColors.cardBackground,
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(AppConstants.borderRadiusLarge),
-          ),
-          title: Text(
-            acompanante == null ? 'Agregar Acompañante' : 'Editar Acompañante',
-            style: const TextStyle(
-              color: Colors.white,
-              fontWeight: FontWeight.bold,
-              fontSize: 20,
-            ),
-          ),
-          content: Form(
-            key: formKey,
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  // Campo Nombre
-                  TextFormField(
-                    controller: nombreController,
-                    decoration: InputDecoration(
-                      labelText: 'Nombre',
-                      hintText: 'Ej: Papas fritas, Papas cocinadas, Mixtas',
-                      labelStyle: const TextStyle(color: Colors.white70),
-                      hintStyle: TextStyle(color: Colors.white38),
-                      filled: true,
-                      fillColor: AppColors.background,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(AppConstants.borderRadiusMedium),
-                        borderSide: const BorderSide(color: Colors.white24),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(AppConstants.borderRadiusMedium),
-                        borderSide: const BorderSide(color: Colors.white24),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(AppConstants.borderRadiusMedium),
-                        borderSide: const BorderSide(color: AppColors.accent, width: 2),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+      builder:
+          (context) => StatefulBuilder(
+            builder:
+                (context, setDialogState) => AlertDialog(
+                  backgroundColor: AppColors.cardBackground,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(
+                      AppConstants.borderRadiusLarge,
                     ),
-                    style: const TextStyle(color: Colors.white, fontSize: 16),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'El nombre es obligatorio';
-                      }
-                      return null;
-                    },
                   ),
-                  const SizedBox(height: 16),
-                  // Campo Precio
-                  TextFormField(
-                    controller: precioController,
-                    decoration: InputDecoration(
-                      labelText: 'Precio adicional',
-                      hintText: '0.00',
-                      prefixText: '\$ ',
-                      prefixStyle: const TextStyle(color: AppColors.price, fontSize: 16),
-                      labelStyle: const TextStyle(color: Colors.white70),
-                      hintStyle: TextStyle(color: Colors.white38),
-                      filled: true,
-                      fillColor: AppColors.background,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(AppConstants.borderRadiusMedium),
-                        borderSide: const BorderSide(color: Colors.white24),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(AppConstants.borderRadiusMedium),
-                        borderSide: const BorderSide(color: Colors.white24),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(AppConstants.borderRadiusMedium),
-                        borderSide: const BorderSide(color: AppColors.accent, width: 2),
-                      ),
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
+                  title: Text(
+                    acompanante == null
+                        ? 'Agregar Acompañante'
+                        : 'Editar Acompañante',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                      fontSize: 20,
                     ),
-                    style: const TextStyle(color: Colors.white, fontSize: 16),
-                    keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'El precio es obligatorio';
-                      }
-                      final precio = double.tryParse(value.trim());
-                      if (precio == null || precio < 0) {
-                        return 'El precio debe ser un número positivo o cero';
-                      }
-                      return null;
-                    },
                   ),
-                  const SizedBox(height: 16),
-                  // Checkbox predeterminado
-                  CheckboxListTile(
-                    title: const Text(
-                      'Selección predeterminada',
-                      style: TextStyle(color: Colors.white70, fontSize: 14),
+                  content: Form(
+                    key: formKey,
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          // Campo Nombre
+                          TextFormField(
+                            controller: nombreController,
+                            decoration: InputDecoration(
+                              labelText: 'Nombre',
+                              hintText:
+                                  'Ej: Papas fritas, Papas cocinadas, Mixtas',
+                              labelStyle: const TextStyle(
+                                color: Colors.white70,
+                              ),
+                              hintStyle: TextStyle(color: Colors.white38),
+                              filled: true,
+                              fillColor: AppColors.background,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(
+                                  AppConstants.borderRadiusMedium,
+                                ),
+                                borderSide: const BorderSide(
+                                  color: Colors.white24,
+                                ),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(
+                                  AppConstants.borderRadiusMedium,
+                                ),
+                                borderSide: const BorderSide(
+                                  color: Colors.white24,
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(
+                                  AppConstants.borderRadiusMedium,
+                                ),
+                                borderSide: BorderSide(
+                                  color: AppColors.accent,
+                                  width: 2,
+                                ),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 16,
+                              ),
+                            ),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                            ),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'El nombre es obligatorio';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          // Campo Precio
+                          TextFormField(
+                            controller: precioController,
+                            decoration: InputDecoration(
+                              labelText: 'Precio adicional',
+                              hintText: '0.00',
+                              prefixText: '\$ ',
+                              prefixStyle: const TextStyle(
+                                color: AppColors.price,
+                                fontSize: 16,
+                              ),
+                              labelStyle: const TextStyle(
+                                color: Colors.white70,
+                              ),
+                              hintStyle: TextStyle(color: Colors.white38),
+                              filled: true,
+                              fillColor: AppColors.background,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(
+                                  AppConstants.borderRadiusMedium,
+                                ),
+                                borderSide: const BorderSide(
+                                  color: Colors.white24,
+                                ),
+                              ),
+                              enabledBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(
+                                  AppConstants.borderRadiusMedium,
+                                ),
+                                borderSide: const BorderSide(
+                                  color: Colors.white24,
+                                ),
+                              ),
+                              focusedBorder: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(
+                                  AppConstants.borderRadiusMedium,
+                                ),
+                                borderSide: BorderSide(
+                                  color: AppColors.accent,
+                                  width: 2,
+                                ),
+                              ),
+                              contentPadding: const EdgeInsets.symmetric(
+                                horizontal: 16,
+                                vertical: 16,
+                              ),
+                            ),
+                            style: const TextStyle(
+                              color: Colors.white,
+                              fontSize: 16,
+                            ),
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            validator: (value) {
+                              if (value == null || value.trim().isEmpty) {
+                                return 'El precio es obligatorio';
+                              }
+                              final precio = double.tryParse(value.trim());
+                              if (precio == null || precio < 0) {
+                                return 'El precio debe ser un número positivo o cero';
+                              }
+                              return null;
+                            },
+                          ),
+                          const SizedBox(height: 16),
+                          // Checkbox predeterminado
+                          CheckboxListTile(
+                            title: const Text(
+                              'Selección predeterminada',
+                              style: TextStyle(
+                                color: Colors.white70,
+                                fontSize: 14,
+                              ),
+                            ),
+                            value: esPredeterminado,
+                            onChanged: (value) {
+                              setDialogState(() {
+                                esPredeterminado = value ?? false;
+                              });
+                            },
+                            activeColor: AppColors.accent,
+                            contentPadding: EdgeInsets.zero,
+                          ),
+                        ],
+                      ),
                     ),
-                    value: esPredeterminado,
-                    onChanged: (value) {
-                      setDialogState(() {
-                        esPredeterminado = value ?? false;
-                      });
-                    },
-                    activeColor: AppColors.accent,
-                    contentPadding: EdgeInsets.zero,
                   ),
-                ],
-              ),
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(context),
-              style: TextButton.styleFrom(
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              ),
-              child: const Text(
-                'Cancelar',
-                style: TextStyle(color: Colors.white70, fontSize: 16),
-              ),
-            ),
-            ElevatedButton(
-              onPressed: () {
-                if (formKey.currentState!.validate()) {
-                  final nuevoAcompanante = Acompanante(
-                    nombre: nombreController.text.trim(),
-                    precioAdicional: double.parse(precioController.text.trim()),
-                    esPredeterminado: esPredeterminado,
-                  );
-                  
-                  setState(() {
-                    if (index != null) {
-                      _acompanantes[index] = nuevoAcompanante;
-                    } else {
-                      _acompanantes.add(nuevoAcompanante);
-                    }
-                  });
-                  
-                  Navigator.pop(context);
-                }
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.accent,
-                padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppConstants.borderRadiusMedium),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      style: TextButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                      ),
+                      child: const Text(
+                        'Cancelar',
+                        style: TextStyle(color: Colors.white70, fontSize: 16),
+                      ),
+                    ),
+                    ElevatedButton(
+                      onPressed: () {
+                        if (formKey.currentState!.validate()) {
+                          final nuevoAcompanante = Acompanante(
+                            nombre: nombreController.text.trim(),
+                            precioAdicional: double.parse(
+                              precioController.text.trim(),
+                            ),
+                            esPredeterminado: esPredeterminado,
+                          );
+
+                          setState(() {
+                            if (index != null) {
+                              _acompanantes[index] = nuevoAcompanante;
+                            } else {
+                              _acompanantes.add(nuevoAcompanante);
+                            }
+                          });
+
+                          Navigator.pop(context);
+                        }
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.accent,
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 24,
+                          vertical: 12,
+                        ),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.borderRadiusMedium,
+                          ),
+                        ),
+                      ),
+                      child: const Text(
+                        'Guardar',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.bold,
+                        ),
+                      ),
+                    ),
+                  ],
                 ),
-              ),
-              child: const Text(
-                'Guardar',
-                style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
-        ),
-      ),
+          ),
     );
   }
 
@@ -868,12 +1068,12 @@ class _ProductFormWidgetState extends State<ProductFormWidget> {
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
         ),
         subtitle: Text(
-          _extras.isEmpty 
+          _extras.isEmpty
               ? 'Sin extras opcionales'
               : '${_extras.length} extra(s) definido(s)',
           style: const TextStyle(color: Colors.white70, fontSize: 12),
         ),
-        leading: const Icon(Icons.add_circle_outline, color: AppColors.accent),
+        leading: Icon(Icons.add_circle_outline, color: AppColors.accent),
         iconColor: AppColors.accent,
         collapsedIconColor: Colors.white70,
         children: [
@@ -896,16 +1096,16 @@ class _ProductFormWidgetState extends State<ProductFormWidget> {
                     final extra = entry.value;
                     return _buildExtraItem(extra, index);
                   }),
-                
+
                 const SizedBox(height: AppConstants.spacingSmall),
-                
+
                 OutlinedButton.icon(
                   onPressed: () => _mostrarDialogoAgregarExtra(),
                   icon: const Icon(Icons.add, size: 18),
                   label: const Text('Agregar extra'),
                   style: OutlinedButton.styleFrom(
                     foregroundColor: AppColors.accent,
-                    side: const BorderSide(color: AppColors.accent),
+                    side: BorderSide(color: AppColors.accent),
                   ),
                 ),
               ],
@@ -923,7 +1123,10 @@ class _ProductFormWidgetState extends State<ProductFormWidget> {
       child: ListTile(
         title: Text(
           extra.nombre,
-          style: const TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+          ),
         ),
         subtitle: Text(
           extra.precioAdicional > 0
@@ -967,146 +1170,192 @@ class _ProductFormWidgetState extends State<ProductFormWidget> {
 
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        backgroundColor: AppColors.cardBackground,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(AppConstants.borderRadiusLarge),
-        ),
-        title: Text(
-          extra == null ? 'Agregar Extra' : 'Editar Extra',
-          style: const TextStyle(
-            color: Colors.white,
-            fontWeight: FontWeight.bold,
-            fontSize: 20,
-          ),
-        ),
-        content: Form(
-          key: formKey,
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                // Campo Nombre
-                TextFormField(
-                  controller: nombreController,
-                  decoration: InputDecoration(
-                    labelText: 'Nombre',
-                    hintText: 'Ej: Gaseosa grande, Porción de papas extra',
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    hintStyle: TextStyle(color: Colors.white38),
-                    filled: true,
-                    fillColor: AppColors.background,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(AppConstants.borderRadiusMedium),
-                      borderSide: const BorderSide(color: Colors.white24),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(AppConstants.borderRadiusMedium),
-                      borderSide: const BorderSide(color: Colors.white24),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(AppConstants.borderRadiusMedium),
-                      borderSide: const BorderSide(color: AppColors.accent, width: 2),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                  ),
-                  style: const TextStyle(color: Colors.white, fontSize: 16),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'El nombre es obligatorio';
-                    }
-                    return null;
-                  },
-                ),
-                const SizedBox(height: 16),
-                // Campo Precio
-                TextFormField(
-                  controller: precioController,
-                  decoration: InputDecoration(
-                    labelText: 'Precio adicional',
-                    hintText: '0.00',
-                    prefixText: '\$ ',
-                    prefixStyle: const TextStyle(color: AppColors.price, fontSize: 16),
-                    labelStyle: const TextStyle(color: Colors.white70),
-                    hintStyle: TextStyle(color: Colors.white38),
-                    filled: true,
-                    fillColor: AppColors.background,
-                    border: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(AppConstants.borderRadiusMedium),
-                      borderSide: const BorderSide(color: Colors.white24),
-                    ),
-                    enabledBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(AppConstants.borderRadiusMedium),
-                      borderSide: const BorderSide(color: Colors.white24),
-                    ),
-                    focusedBorder: OutlineInputBorder(
-                      borderRadius: BorderRadius.circular(AppConstants.borderRadiusMedium),
-                      borderSide: const BorderSide(color: AppColors.accent, width: 2),
-                    ),
-                    contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-                  ),
-                  style: const TextStyle(color: Colors.white, fontSize: 16),
-                  keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                  validator: (value) {
-                    if (value == null || value.trim().isEmpty) {
-                      return 'El precio es obligatorio';
-                    }
-                    final precio = double.tryParse(value.trim());
-                    if (precio == null || precio < 0) {
-                      return 'El precio debe ser un número positivo o cero';
-                    }
-                    return null;
-                  },
-                ),
-              ],
-            ),
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(context),
-            style: TextButton.styleFrom(
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-            ),
-            child: const Text(
-              'Cancelar',
-              style: TextStyle(color: Colors.white70, fontSize: 16),
-            ),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              if (formKey.currentState!.validate()) {
-                final nuevoExtra = Extra(
-                  nombre: nombreController.text.trim(),
-                  precioAdicional: double.parse(precioController.text.trim()),
-                );
-                
-                setState(() {
-                  if (index != null) {
-                    _extras[index] = nuevoExtra;
-                  } else {
-                    _extras.add(nuevoExtra);
-                  }
-                });
-                
-                Navigator.pop(context);
-              }
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: AppColors.accent,
-              padding: const EdgeInsets.symmetric(horizontal: 24, vertical: 12),
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(AppConstants.borderRadiusMedium),
+      builder:
+          (context) => AlertDialog(
+            backgroundColor: AppColors.cardBackground,
+            shape: RoundedRectangleBorder(
+              borderRadius: BorderRadius.circular(
+                AppConstants.borderRadiusLarge,
               ),
             ),
-            child: const Text(
-              'Guardar',
-              style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold),
+            title: Text(
+              extra == null ? 'Agregar Extra' : 'Editar Extra',
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.bold,
+                fontSize: 20,
+              ),
             ),
+            content: Form(
+              key: formKey,
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // Campo Nombre
+                    TextFormField(
+                      controller: nombreController,
+                      decoration: InputDecoration(
+                        labelText: 'Nombre',
+                        hintText: 'Ej: Gaseosa grande, Porción de papas extra',
+                        labelStyle: const TextStyle(color: Colors.white70),
+                        hintStyle: TextStyle(color: Colors.white38),
+                        filled: true,
+                        fillColor: AppColors.background,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.borderRadiusMedium,
+                          ),
+                          borderSide: const BorderSide(color: Colors.white24),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.borderRadiusMedium,
+                          ),
+                          borderSide: const BorderSide(color: Colors.white24),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.borderRadiusMedium,
+                          ),
+                          borderSide: BorderSide(
+                            color: AppColors.accent,
+                            width: 2,
+                          ),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 16,
+                        ),
+                      ),
+                      style: const TextStyle(color: Colors.white, fontSize: 16),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'El nombre es obligatorio';
+                        }
+                        return null;
+                      },
+                    ),
+                    const SizedBox(height: 16),
+                    // Campo Precio
+                    TextFormField(
+                      controller: precioController,
+                      decoration: InputDecoration(
+                        labelText: 'Precio adicional',
+                        hintText: '0.00',
+                        prefixText: '\$ ',
+                        prefixStyle: const TextStyle(
+                          color: AppColors.price,
+                          fontSize: 16,
+                        ),
+                        labelStyle: const TextStyle(color: Colors.white70),
+                        hintStyle: TextStyle(color: Colors.white38),
+                        filled: true,
+                        fillColor: AppColors.background,
+                        border: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.borderRadiusMedium,
+                          ),
+                          borderSide: const BorderSide(color: Colors.white24),
+                        ),
+                        enabledBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.borderRadiusMedium,
+                          ),
+                          borderSide: const BorderSide(color: Colors.white24),
+                        ),
+                        focusedBorder: OutlineInputBorder(
+                          borderRadius: BorderRadius.circular(
+                            AppConstants.borderRadiusMedium,
+                          ),
+                          borderSide: BorderSide(
+                            color: AppColors.accent,
+                            width: 2,
+                          ),
+                        ),
+                        contentPadding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 16,
+                        ),
+                      ),
+                      style: const TextStyle(color: Colors.white, fontSize: 16),
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      validator: (value) {
+                        if (value == null || value.trim().isEmpty) {
+                          return 'El precio es obligatorio';
+                        }
+                        final precio = double.tryParse(value.trim());
+                        if (precio == null || precio < 0) {
+                          return 'El precio debe ser un número positivo o cero';
+                        }
+                        return null;
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(context),
+                style: TextButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                ),
+                child: const Text(
+                  'Cancelar',
+                  style: TextStyle(color: Colors.white70, fontSize: 16),
+                ),
+              ),
+              ElevatedButton(
+                onPressed: () {
+                  if (formKey.currentState!.validate()) {
+                    final nuevoExtra = Extra(
+                      nombre: nombreController.text.trim(),
+                      precioAdicional: double.parse(
+                        precioController.text.trim(),
+                      ),
+                    );
+
+                    setState(() {
+                      if (index != null) {
+                        _extras[index] = nuevoExtra;
+                      } else {
+                        _extras.add(nuevoExtra);
+                      }
+                    });
+
+                    Navigator.pop(context);
+                  }
+                },
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.accent,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 24,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(
+                      AppConstants.borderRadiusMedium,
+                    ),
+                  ),
+                ),
+                child: const Text(
+                  'Guardar',
+                  style: TextStyle(
+                    color: Colors.white,
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
+                  ),
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
     );
   }
 
@@ -1115,5 +1364,270 @@ class _ProductFormWidgetState extends State<ProductFormWidget> {
       _extras.removeAt(index);
     });
   }
-}
 
+  // ==================== SECCIÓN RECETA ====================
+
+  Widget _buildRecetaSection() {
+    return Card(
+      color: AppColors.cardBackground,
+      child: ExpansionTile(
+        title: const Text(
+          'Receta (insumos)',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold),
+        ),
+        subtitle: Text(
+          _recetaLineas.isEmpty
+              ? 'Sin receta'
+              : '${_recetaLineas.length} insumo(s)',
+          style: const TextStyle(color: Colors.white70, fontSize: 12),
+        ),
+        leading: Icon(Icons.menu_book, color: AppColors.accent),
+        iconColor: AppColors.accent,
+        collapsedIconColor: Colors.white70,
+        children: [
+          Padding(
+            padding: const EdgeInsets.all(AppConstants.paddingMedium),
+            child: Column(
+              children: [
+                if (_recetaLineas.isEmpty)
+                  const Padding(
+                    padding: EdgeInsets.all(AppConstants.paddingMedium),
+                    child: Text(
+                      'Agrega insumos y cantidades para este producto.',
+                      style: TextStyle(color: Colors.white70, fontSize: 14),
+                      textAlign: TextAlign.center,
+                    ),
+                  )
+                else
+                  ..._recetaLineas.asMap().entries.map((entry) {
+                    final index = entry.key;
+                    final linea = entry.value;
+                    final insumoNombre =
+                        _insumos
+                            .where((i) => i.id == linea.insumoId)
+                            .map((i) => i.nombre)
+                            .firstOrNull ??
+                        'ID ${linea.insumoId}';
+                    return Card(
+                      color: AppColors.background,
+                      margin: const EdgeInsets.only(
+                        bottom: AppConstants.spacingSmall,
+                      ),
+                      child: ListTile(
+                        title: Text(
+                          insumoNombre,
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontWeight: FontWeight.bold,
+                          ),
+                        ),
+                        subtitle: Text(
+                          '${linea.cantidad}',
+                          style: const TextStyle(color: Colors.white70),
+                        ),
+                        trailing: Row(
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            IconButton(
+                              icon: const Icon(Icons.edit, size: 20),
+                              color: AppColors.accent,
+                              onPressed:
+                                  () =>
+                                      _mostrarDialogoRecetaLinea(index: index),
+                            ),
+                            IconButton(
+                              icon: const Icon(Icons.delete, size: 20),
+                              color: AppColors.error,
+                              onPressed: () {
+                                setState(() => _recetaLineas.removeAt(index));
+                              },
+                            ),
+                          ],
+                        ),
+                      ),
+                    );
+                  }),
+                const SizedBox(height: AppConstants.spacingSmall),
+                OutlinedButton.icon(
+                  onPressed:
+                      _insumos.isEmpty
+                          ? null
+                          : () => _mostrarDialogoRecetaLinea(),
+                  icon: const Icon(Icons.add, size: 18),
+                  label: const Text('Agregar insumo a la receta'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: AppColors.accent,
+                    side: BorderSide(color: AppColors.accent),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _mostrarDialogoRecetaLinea({int? index}) {
+    final linea = index != null ? _recetaLineas[index] : null;
+    int? insumoIdSeleccionado = linea?.insumoId;
+    final cantidadController = TextEditingController(
+      text: linea?.cantidad.toString() ?? '1',
+    );
+    final formKey = GlobalKey<FormState>();
+
+    showDialog(
+      context: context,
+      builder:
+          (context) => StatefulBuilder(
+            builder:
+                (context, setDialogState) => AlertDialog(
+                  backgroundColor: AppColors.cardBackground,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(
+                      AppConstants.borderRadiusLarge,
+                    ),
+                  ),
+                  title: Text(
+                    linea == null
+                        ? 'Agregar insumo a receta'
+                        : 'Editar cantidad',
+                    style: const TextStyle(
+                      color: Colors.white,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                  content: Form(
+                    key: formKey,
+                    child: SingleChildScrollView(
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (linea == null)
+                            DropdownButtonFormField<int>(
+                              initialValue: insumoIdSeleccionado,
+                              decoration: InputDecoration(
+                                labelText: 'Insumo',
+                                labelStyle: const TextStyle(
+                                  color: Colors.white70,
+                                ),
+                                filled: true,
+                                fillColor: AppColors.background,
+                                border: OutlineInputBorder(
+                                  borderRadius: BorderRadius.circular(
+                                    AppConstants.borderRadiusMedium,
+                                  ),
+                                ),
+                              ),
+                              dropdownColor: AppColors.cardBackground,
+                              items:
+                                  _insumos
+                                      .where(
+                                        (i) =>
+                                            !_recetaLineas.any(
+                                              (r) => r.insumoId == i.id,
+                                            ),
+                                      )
+                                      .map(
+                                        (i) => DropdownMenuItem(
+                                          value: i.id,
+                                          child: Text(
+                                            i.nombre,
+                                            style: const TextStyle(
+                                              color: Colors.white,
+                                            ),
+                                          ),
+                                        ),
+                                      )
+                                      .toList(),
+                              onChanged:
+                                  (v) => setDialogState(
+                                    () => insumoIdSeleccionado = v,
+                                  ),
+                              validator:
+                                  (v) => v == null ? 'Elige un insumo' : null,
+                            ),
+                          if (linea == null) const SizedBox(height: 16),
+                          TextFormField(
+                            controller: cantidadController,
+                            decoration: InputDecoration(
+                              labelText: 'Cantidad',
+                              labelStyle: const TextStyle(
+                                color: Colors.white70,
+                              ),
+                              filled: true,
+                              fillColor: AppColors.background,
+                              border: OutlineInputBorder(
+                                borderRadius: BorderRadius.circular(
+                                  AppConstants.borderRadiusMedium,
+                                ),
+                              ),
+                            ),
+                            style: const TextStyle(color: Colors.white),
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            validator: (v) {
+                              if (v == null || v.trim().isEmpty) {
+                                return 'Obligatorio';
+                              }
+                              final n = double.tryParse(v.trim());
+                              if (n == null || n <= 0) return 'Debe ser > 0';
+                              return null;
+                            },
+                          ),
+                        ],
+                      ),
+                    ),
+                  ),
+                  actions: [
+                    TextButton(
+                      onPressed: () => Navigator.pop(context),
+                      child: const Text(
+                        'Cancelar',
+                        style: TextStyle(color: Colors.white70),
+                      ),
+                    ),
+                    ElevatedButton(
+                      onPressed: () {
+                        if (!formKey.currentState!.validate()) return;
+                        final cantidad =
+                            double.tryParse(cantidadController.text.trim()) ??
+                            0;
+                        if (cantidad <= 0) return;
+                        final id = insumoIdSeleccionado ?? linea?.insumoId;
+                        if (id == null) return;
+                        setState(() {
+                          if (index != null) {
+                            _recetaLineas[index] = RecetaDetalle(
+                              productoId: 0,
+                              insumoId: id,
+                              cantidad: cantidad,
+                            );
+                          } else {
+                            _recetaLineas.add(
+                              RecetaDetalle(
+                                productoId: 0,
+                                insumoId: id,
+                                cantidad: cantidad,
+                              ),
+                            );
+                          }
+                        });
+                        Navigator.pop(context);
+                      },
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.accent,
+                      ),
+                      child: const Text(
+                        'Guardar',
+                        style: TextStyle(color: Colors.white),
+                      ),
+                    ),
+                  ],
+                ),
+          ),
+    );
+  }
+}

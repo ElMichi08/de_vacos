@@ -7,19 +7,23 @@ import 'extra.dart';
 /// - Productos simples (precio único)
 /// - Variantes de tamaño/precio (ej: Asado 1/2/3 cortes)
 /// - Acompañantes opcionales (ej: Papas fritas, cocinadas, mixtas)
-/// 
+///
 /// Mantiene retrocompatibilidad: productos existentes funcionan igual
 class Producto {
   final int? id;
   final String nombre;
-  final double precio; // Precio base (se usa si no hay variantes, o como precio mínimo)
+  final double
+  precio; // Precio base (se usa si no hay variantes, o como precio mínimo)
   final String imagenPath;
   final bool cancelado; // Soft delete
-  
+
   // Nuevos campos opcionales para productos complejos
-  final List<ProductoVariante>? variantes; // null = producto simple, [] = sin variantes, [variantes] = producto con variantes
-  final List<Acompanante>? acompanantes; // null o [] = sin acompañantes opcionales (opciones excluyentes)
-  final List<Extra>? extras; // null o [] = sin extras opcionales (aditivos, se pueden seleccionar múltiples)
+  final List<ProductoVariante>?
+  variantes; // null = producto simple, [] = sin variantes, [variantes] = producto con variantes
+  final List<Acompanante>?
+  acompanantes; // null o [] = sin acompañantes opcionales (opciones excluyentes)
+  final List<Extra>?
+  extras; // null o [] = sin extras opcionales (aditivos, se pueden seleccionar múltiples)
 
   Producto({
     this.id,
@@ -43,7 +47,9 @@ class Producto {
       if (variantes != null && variantes!.isNotEmpty)
         'variantes': jsonEncode(variantes!.map((v) => v.toMap()).toList()),
       if (acompanantes != null && acompanantes!.isNotEmpty)
-        'acompanantes': jsonEncode(acompanantes!.map((a) => a.toMap()).toList()),
+        'acompanantes': jsonEncode(
+          acompanantes!.map((a) => a.toMap()).toList(),
+        ),
       if (extras != null && extras!.isNotEmpty)
         'extras': jsonEncode(extras!.map((e) => e.toMap()).toList()),
     };
@@ -52,15 +58,20 @@ class Producto {
   factory Producto.fromMap(Map<String, dynamic> map) {
     // Parsear variantes (retrocompatibilidad: si no existe, es null)
     List<ProductoVariante>? variantes;
-    if (map['variantes'] != null && map['variantes'].toString().trim().isNotEmpty) {
+    if (map['variantes'] != null &&
+        map['variantes'].toString().trim().isNotEmpty) {
       try {
-        final variantesJson = map['variantes'] is String 
-            ? jsonDecode(map['variantes'] as String)
-            : map['variantes'];
+        final variantesJson =
+            map['variantes'] is String
+                ? jsonDecode(map['variantes'] as String)
+                : map['variantes'];
         if (variantesJson is List) {
-          variantes = variantesJson
-              .map((v) => ProductoVariante.fromMap(v as Map<String, dynamic>))
-              .toList();
+          variantes =
+              variantesJson
+                  .map(
+                    (v) => ProductoVariante.fromMap(v as Map<String, dynamic>),
+                  )
+                  .toList();
         }
       } catch (e) {
         // Si hay error al parsear, mantener como null (producto simple)
@@ -70,15 +81,18 @@ class Producto {
 
     // Parsear acompañantes (retrocompatibilidad: si no existe, es null)
     List<Acompanante>? acompanantes;
-    if (map['acompanantes'] != null && map['acompanantes'].toString().trim().isNotEmpty) {
+    if (map['acompanantes'] != null &&
+        map['acompanantes'].toString().trim().isNotEmpty) {
       try {
-        final acompanantesJson = map['acompanantes'] is String
-            ? jsonDecode(map['acompanantes'] as String)
-            : map['acompanantes'];
+        final acompanantesJson =
+            map['acompanantes'] is String
+                ? jsonDecode(map['acompanantes'] as String)
+                : map['acompanantes'];
         if (acompanantesJson is List) {
-          acompanantes = acompanantesJson
-              .map((a) => Acompanante.fromMap(a as Map<String, dynamic>))
-              .toList();
+          acompanantes =
+              acompanantesJson
+                  .map((a) => Acompanante.fromMap(a as Map<String, dynamic>))
+                  .toList();
         }
       } catch (e) {
         // Si hay error al parsear, mantener como null
@@ -90,13 +104,15 @@ class Producto {
     List<Extra>? extras;
     if (map['extras'] != null && map['extras'].toString().trim().isNotEmpty) {
       try {
-        final extrasJson = map['extras'] is String
-            ? jsonDecode(map['extras'] as String)
-            : map['extras'];
+        final extrasJson =
+            map['extras'] is String
+                ? jsonDecode(map['extras'] as String)
+                : map['extras'];
         if (extrasJson is List) {
-          extras = extrasJson
-              .map((e) => Extra.fromMap(e as Map<String, dynamic>))
-              .toList();
+          extras =
+              extrasJson
+                  .map((e) => Extra.fromMap(e as Map<String, dynamic>))
+                  .toList();
         }
       } catch (e) {
         // Si hay error al parsear, mantener como null
@@ -107,7 +123,10 @@ class Producto {
     return Producto(
       id: map['id'],
       nombre: map['nombre'],
-      precio: map['precio'] is int ? (map['precio'] as int).toDouble() : map['precio'],
+      precio:
+          map['precio'] is int
+              ? (map['precio'] as int).toDouble()
+              : map['precio'],
       imagenPath: map['imagenPath'] ?? '',
       cancelado: (map['cancelado'] ?? 0) == 1,
       variantes: variantes,
@@ -131,7 +150,7 @@ class Producto {
 
     // Validar variantes si existen
     if (variantes != null) {
-      for (var variante in variantes!) {
+      for (final variante in variantes!) {
         final error = variante.validar();
         if (error != null) {
           return 'Error en variante "${variante.nombre}": $error';
@@ -141,7 +160,7 @@ class Producto {
 
     // Validar acompañantes si existen
     if (acompanantes != null) {
-      for (var acompanante in acompanantes!) {
+      for (final acompanante in acompanantes!) {
         final error = acompanante.validar();
         if (error != null) {
           return 'Error en acompañante "${acompanante.nombre}": $error';
@@ -151,7 +170,7 @@ class Producto {
 
     // Validar extras si existen
     if (extras != null) {
-      for (var extra in extras!) {
+      for (final extra in extras!) {
         final error = extra.validar();
         if (error != null) {
           return 'Error en extra "${extra.nombre}": $error';
@@ -166,7 +185,8 @@ class Producto {
   bool get tieneVariantes => variantes != null && variantes!.isNotEmpty;
 
   /// Indica si el producto tiene acompañantes opcionales
-  bool get tieneAcompanantes => acompanantes != null && acompanantes!.isNotEmpty;
+  bool get tieneAcompanantes =>
+      acompanantes != null && acompanantes!.isNotEmpty;
 
   /// Indica si el producto tiene extras opcionales
   bool get tieneExtras => extras != null && extras!.isNotEmpty;
@@ -224,4 +244,3 @@ class Producto {
     );
   }
 }
-

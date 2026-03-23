@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../core/constants/app_colors.dart';
 import '../services/producto_service.dart';
 import '../services/pedido_service.dart';
@@ -78,7 +79,7 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
             backgroundColor: AppColors.success,
           ),
         );
-        Navigator.pop(context, true);
+        context.pop(true);
       }
     } catch (e) {
       if (mounted) {
@@ -104,11 +105,11 @@ class _NewOrderScreenState extends State<NewOrderScreen> {
       backgroundColor: AppColors.background,
       appBar: const BackHeaderWidget(title: 'Nuevo Pedido'),
       body: _isLoading
-          ? const Center(
+          ? Center(
               child: CircularProgressIndicator(color: AppColors.accent),
             )
           : _isSaving
-              ? const Center(
+              ? Center(
                   child: CircularProgressIndicator(color: AppColors.accent),
                 )
               : productos.isEmpty

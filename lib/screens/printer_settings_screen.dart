@@ -221,7 +221,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
         actions: [
           TextButton(
             onPressed: () => Navigator.pop(context),
-            child: const Text(
+            child: Text(
               'Cerrar',
               style: TextStyle(color: AppColors.accent),
             ),
@@ -232,7 +232,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
               // Copiar al portapapeles (opcional)
               // Clipboard.setData(ClipboardData(text: errorMessage));
             },
-            child: const Text(
+            child: Text(
               'Entendido',
               style: TextStyle(color: AppColors.accent, fontWeight: FontWeight.bold),
             ),

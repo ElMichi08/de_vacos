@@ -1,0 +1,11 @@
+"features": [
+    "productos",
+    "pedidos",
+    "cocina",
+    "insumos",
+    "reportes",
+    "caja",
+    "impresora",
+    "pruebas",
+    "licencia"
+  ],

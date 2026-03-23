@@ -1,7 +1,10 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../core/constants/app_colors.dart';
 import '../models/producto.dart';
+import '../models/receta_detalle.dart';
 import '../services/producto_service.dart';
+import '../services/receta_service.dart';
 import '../widgets/back_header_widget.dart';
 import '../widgets/product_form_widget.dart';
 
@@ -20,7 +23,7 @@ class AddProductScreen extends StatefulWidget {
 class _AddProductScreenState extends State<AddProductScreen> {
   bool _isSaving = false;
 
-  Future<void> _guardarProducto(Producto producto) async {
+  Future<void> _guardarProducto(Producto producto, List<RecetaDetalle> recetaLineas) async {
     setState(() {
       _isSaving = true;
     });
@@ -42,11 +45,18 @@ class _AddProductScreenState extends State<AddProductScreen> {
         return;
       }
 
+      int productId;
       if (producto.id == null) {
-        await ProductoService.guardar(producto);
+        productId = await ProductoService.guardar(producto);
       } else {
         await ProductoService.actualizar(producto);
+        productId = producto.id!;
       }
+
+      final lineasConProductoId = recetaLineas
+          .map((l) => RecetaDetalle(productoId: productId, insumoId: l.insumoId, cantidad: l.cantidad))
+          .toList();
+      await RecetaService.guardarReceta(productId, lineasConProductoId);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -55,7 +65,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
             backgroundColor: AppColors.success,
           ),
         );
-        Navigator.pop(context, true);
+        context.pop(true);
       }
     } catch (e) {
       if (mounted) {
@@ -83,7 +93,7 @@ class _AddProductScreenState extends State<AddProductScreen> {
         title: widget.producto == null ? 'Nuevo Producto' : 'Editar Producto',
       ),
       body: _isSaving
-          ? const Center(
+          ? Center(
               child: CircularProgressIndicator(color: AppColors.accent),
             )
           : ProductFormWidget(

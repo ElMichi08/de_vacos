@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "appName": "De Vacos Urban Grill",
+  "appSubtitle": "Sistema de Gestión de Restaurante",
+  "colors": {
+    "primary": "#A32D13",
+    "background": "#2B1E1A",
+    "accent": "#FFAB40",
+    "cardBackground": "#3B2C24"
+  },
+  "features": [
+    "productos",
+    "pedidos",
+    "reportes",
+    "caja",
+    "impresora",
+    "licencia"
+  ],
+  "logoUrl": null,
+  "logoAssetPath": null
+}

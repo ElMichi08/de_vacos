@@ -17,13 +17,13 @@ class UsbPrinterTransport implements PrinterTransport {
   @override
   Future<void> connect(DiscoveredPrinter printer) async {
     if (printer.type != AppPrinterType.usb) {
-      throw const PrinterConnectionException(
-          'El tipo de impresora no es USB');
+      throw const PrinterConnectionException('El tipo de impresora no es USB');
     }
 
     if (!_isPlatformSupported()) {
       throw const PrinterPlatformNotSupportedException(
-          'USB solo disponible en Android/Windows');
+        'USB solo disponible en Android/Windows',
+      );
     }
 
     try {
@@ -31,7 +31,8 @@ class UsbPrinterTransport implements PrinterTransport {
       final device = printer.extraData?['device'] as PrinterDevice?;
       if (device == null) {
         throw const PrinterConnectionException(
-            'Información del dispositivo no disponible');
+          'Información del dispositivo no disponible',
+        );
       }
 
       // Crear UsbPrinterInput a partir de los datos del dispositivo
@@ -51,7 +52,8 @@ class UsbPrinterTransport implements PrinterTransport {
         _connectedPrinter = printer;
       } else {
         throw const PrinterConnectionException(
-            'No se pudo establecer la conexión USB');
+          'No se pudo establecer la conexión USB',
+        );
       }
     } catch (e) {
       if (e is PrinterException) {
@@ -64,7 +66,8 @@ class UsbPrinterTransport implements PrinterTransport {
           errorStr.contains('permiso') ||
           errorStr.contains('access denied')) {
         throw PrinterUsbPermissionException(
-            'Se requieren permisos USB. Verifica la configuración del dispositivo.');
+          'Se requieren permisos USB. Verifica la configuración del dispositivo.',
+        );
       }
 
       debugPrint('Error al conectar impresora USB: $e');
@@ -96,11 +99,13 @@ class UsbPrinterTransport implements PrinterTransport {
 
     // Validar que bytes no esté vacío
     if (bytes.isEmpty) {
-      throw const PrinterSendException('No se puede enviar una lista de bytes vacía');
+      throw const PrinterSendException(
+        'No se puede enviar una lista de bytes vacía',
+      );
     }
 
     // Validar que todos los bytes sean valores válidos (0-255)
-    for (var byte in bytes) {
+    for (final byte in bytes) {
       if (byte < 0 || byte > 255) {
         throw const PrinterSendException(
           'El formato de los datos no es válido para la impresora ESC/POS. Los bytes deben estar entre 0 y 255.',
@@ -172,15 +177,14 @@ class UsbPrinterTransport implements PrinterTransport {
   Future<List<DiscoveredPrinter>> scanPrinters() async {
     if (!_isPlatformSupported()) {
       throw const PrinterPlatformNotSupportedException(
-          'USB solo disponible en Android/Windows');
+        'USB solo disponible en Android/Windows',
+      );
     }
 
     try {
       // Usar el método discovery del plugin con tipo USB
       // discovery() retorna un Stream<PrinterDevice>, necesitamos convertirlo a lista
-      final devicesStream = _printerManager.discovery(
-        type: PrinterType.usb,
-      );
+      final devicesStream = _printerManager.discovery(type: PrinterType.usb);
 
       // Convertir el Stream a una lista
       final devices = await devicesStream.toList();
@@ -193,16 +197,14 @@ class UsbPrinterTransport implements PrinterTransport {
       return devices.map((device) {
         final deviceName = device.name;
         final deviceAddress = device.address ?? '';
-        
+
         // Para USB, el address puede ser el path del dispositivo o vendorId:productId
         // El plugin maneja esto internamente
-        final extraData = <String, dynamic>{
-          'device': device,
-        };
-        
+        final extraData = <String, dynamic>{'device': device};
+
         // Nota: vendorId y productId pueden no estar disponibles en PrinterDevice
         // El plugin maneja la identificación del dispositivo internamente
-        
+
         return DiscoveredPrinter(
           name: deviceName.isNotEmpty ? deviceName : 'Impresora USB',
           address: deviceAddress,
@@ -212,16 +214,17 @@ class UsbPrinterTransport implements PrinterTransport {
       }).toList();
     } catch (e) {
       debugPrint('Error al escanear impresoras USB: $e');
-      
+
       // Detectar errores de permisos USB
       final errorStr = e.toString().toLowerCase();
       if (errorStr.contains('permission') ||
           errorStr.contains('permiso') ||
           errorStr.contains('access denied')) {
         throw PrinterUsbPermissionException(
-            'Se requieren permisos USB para escanear impresoras. Verifica la configuración del dispositivo.');
+          'Se requieren permisos USB para escanear impresoras. Verifica la configuración del dispositivo.',
+        );
       }
-      
+
       throw PrinterNotFoundException('Error al buscar impresoras USB: $e');
     }
   }
@@ -231,4 +234,3 @@ class UsbPrinterTransport implements PrinterTransport {
     return !kIsWeb && (Platform.isAndroid || Platform.isWindows);
   }
 }
-

@@ -191,7 +191,7 @@ class _PrinterSelectionModalState extends State<PrinterSelectionModal> {
         maxHeight: MediaQuery.of(context).size.height * 0.8,
       ),
       padding: const EdgeInsets.all(AppConstants.paddingLarge),
-      decoration: const BoxDecoration(
+      decoration: BoxDecoration(
         color: AppColors.cardBackground,
         borderRadius: BorderRadius.vertical(
           top: Radius.circular(AppConstants.borderRadiusLarge),

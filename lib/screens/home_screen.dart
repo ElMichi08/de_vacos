@@ -1,14 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
+import '../core/config/app_config.dart';
 import '../core/constants/app_colors.dart';
 import '../core/constants/app_constants.dart';
-import '../widgets/license_status_modal.dart';
-import 'product_grid_screen.dart';
-import 'order_list_screen.dart';
-import 'report_screen.dart';
-import 'caja_screen.dart';
-import 'printer_settings_screen.dart';
-import 'test_data_screen.dart';
-
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
 
@@ -17,25 +11,7 @@ class HomeScreen extends StatelessWidget {
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: Row(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.local_fire_department,
-              color: Colors.white,
-              size: 28,
-            ),
-            const SizedBox(width: 10),
-            const Text(
-              'De Vacos Urban Grill',
-              style: TextStyle(
-                color: Colors.white,
-                fontWeight: FontWeight.bold,
-                letterSpacing: 1.2,
-              ),
-            ),
-          ],
-        ),
+        title: _buildAppBarTitle(context),
         backgroundColor: AppColors.primary,
         elevation: 0,
         automaticallyImplyLeading: false, // Sin flecha de regreso
@@ -77,98 +53,78 @@ class HomeScreen extends StatelessWidget {
     );
   }
 
-  Widget _buildMenuGrid(BuildContext context, int crossAxisCount, bool isLandscape) {
-    final menuItems = [
-      _MenuItem(
-        icon: Icons.restaurant_menu,
-        title: 'Productos',
-        subtitle: 'Gestionar productos del menú',
-        color: AppColors.accent,
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const ProductGridScreen()),
-          );
-        },
-      ),
-      _MenuItem(
-        icon: Icons.receipt_long,
-        title: 'Pedidos',
-        subtitle: 'Ver y gestionar pedidos',
-        color: AppColors.success,
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const OrderListScreen()),
-          );
-        },
-      ),
-      _MenuItem(
-        icon: Icons.assessment,
-        title: 'Reportes',
-        subtitle: 'Estadísticas y reportes',
-        color: AppColors.price,
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const ReportScreen()),
-          );
-        },
-      ),
-      _MenuItem(
-        icon: Icons.account_balance_wallet,
-        title: 'Caja',
-        subtitle: 'Gestión de ingresos y egresos',
-        color: Colors.amber,
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(builder: (context) => const CajaScreen()),
-          );
-        },
-      ),
-      _MenuItem(
-        icon: Icons.print,
-        title: 'Impresora',
-        subtitle: 'Configurar impresora térmica',
-        color: Colors.blue,
-        onTap: () {
-          Navigator.push(
-            context,
-            MaterialPageRoute(
-              builder: (context) => const PrinterSettingsScreen(),
+  Widget _buildAppBarTitle(BuildContext context) {
+    final config = AppConfig.instance;
+    final hasLogo = config.hasLogo;
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        if (hasLogo && config.logoUrl != null && config.logoUrl!.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(right: 10),
+            child: Image.network(
+              config.logoUrl!,
+              height: 28,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => const Icon(Icons.local_fire_department, color: Colors.white, size: 28),
             ),
-          );
-        },
-      ),
-      // Vista de Pruebas - Ocultada pero no eliminada
-      // _MenuItem(
-      //   icon: Icons.science,
-      //   title: 'Pruebas',
-      //   subtitle: 'Generar datos de prueba',
-      //   color: Colors.purple,
-      //   onTap: () {
-      //     Navigator.push(
-      //       context,
-      //       MaterialPageRoute(
-      //         builder: (context) => const TestDataScreen(),
-      //       ),
-      //     );
-      //   },
-      // ),
-      _MenuItem(
-        icon: Icons.verified_user,
-        title: 'Licencia',
-        subtitle: 'Ver estado de la licencia',
-        color: Colors.teal,
-        onTap: () {
-          showDialog(
-            context: context,
-            builder: (context) => const LicenseStatusModal(),
-          );
-        },
-      ),
+          )
+        else if (hasLogo && config.logoAssetPath != null && config.logoAssetPath!.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.only(right: 10),
+            child: Image.asset(
+              config.logoAssetPath!,
+              height: 28,
+              fit: BoxFit.contain,
+              errorBuilder: (_, __, ___) => const Icon(Icons.local_fire_department, color: Colors.white, size: 28),
+            ),
+          )
+        else
+          const Icon(Icons.local_fire_department, color: Colors.white, size: 28),
+        const SizedBox(width: 10),
+        Text(
+          config.appName,
+          style: const TextStyle(
+            color: Colors.white,
+            fontWeight: FontWeight.bold,
+            letterSpacing: 1.2,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildMenuGrid(BuildContext context, int crossAxisCount, bool isLandscape) {
+    // Lista completa de ítems del menú (orden: productos, pedidos, cocina, insumos, reportes, caja, impresora, pruebas).
+    // IDs válidos: productos, pedidos, cocina, insumos, reportes, caja, impresora, pruebas.
+    final fullMenu = [
+      _MenuDef(id: 'productos', icon: Icons.restaurant_menu, title: 'Productos', subtitle: 'Gestionar productos del menú', color: AppColors.accent, path: '/productos'),
+      _MenuDef(id: 'pedidos', icon: Icons.receipt_long, title: 'Pedidos', subtitle: 'Ver y gestionar pedidos', color: AppColors.success, path: '/pedidos'),
+      _MenuDef(id: 'cocina', icon: Icons.restaurant, title: 'Cocina (KDS)', subtitle: 'Pedidos en preparación · Marcar listo', color: Colors.deepOrange, path: '/cocina'),
+      _MenuDef(id: 'insumos', icon: Icons.inventory_2, title: 'Insumos', subtitle: 'Inventario y recetas', color: Colors.cyan, path: '/insumos'),
+      _MenuDef(id: 'reportes', icon: Icons.assessment, title: 'Reportes', subtitle: 'Estadísticas y reportes', color: AppColors.price, path: '/reportes'),
+      _MenuDef(id: 'caja', icon: Icons.account_balance_wallet, title: 'Caja', subtitle: 'Gestión de ingresos y egresos', color: Colors.amber, path: '/caja'),
+      _MenuDef(id: 'impresora', icon: Icons.print, title: 'Impresora', subtitle: 'Configurar impresora térmica', color: Colors.blue, path: '/impresora'),
+      _MenuDef(id: 'pruebas', icon: Icons.science, title: 'Pruebas', subtitle: 'Generar datos de prueba', color: Colors.purple, path: '/pruebas'),
     ];
+
+    final features = AppConfig.instance.features;
+    final visible = (features == null || features.isEmpty)
+        ? fullMenu.toList()
+        : fullMenu.where((e) => features.contains(e.id)).toList();
+
+    final menuItems = visible
+        .map(
+          (def) => _MenuItem(
+            icon: def.icon,
+            title: def.title,
+            subtitle: def.subtitle,
+            color: def.color,
+            onTap: () => context.push(def.path),
+          ),
+        )
+        .toList();
 
     return GridView.builder(
       shrinkWrap: true,
@@ -187,6 +143,25 @@ class HomeScreen extends StatelessWidget {
       },
     );
   }
+}
+
+/// Definición de un ítem del menú (id para feature flags).
+class _MenuDef {
+  final String id;
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Color color;
+  final String path;
+
+  const _MenuDef({
+    required this.id,
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.color,
+    required this.path,
+  });
 }
 
 class _MenuItem {

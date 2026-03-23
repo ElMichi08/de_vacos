@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../core/constants/app_colors.dart';
 import '../services/producto_service.dart';
 import '../services/pedido_service.dart';
@@ -100,7 +101,7 @@ class _EditOrderScreenState extends State<EditOrderScreen> {
             backgroundColor: AppColors.success,
           ),
         );
-        Navigator.pop(context, true);
+        context.pop(true);
       }
     } catch (e) {
       if (mounted) {
@@ -134,13 +135,13 @@ class _EditOrderScreenState extends State<EditOrderScreen> {
             backgroundColor: AppColors.error,
           ),
         );
-        Navigator.pop(context);
+        context.pop();
       });
       
       return Scaffold(
         backgroundColor: AppColors.background,
         appBar: const BackHeaderWidget(title: 'Editar Pedido'),
-        body: const Center(
+        body: Center(
           child: CircularProgressIndicator(color: AppColors.accent),
         ),
       );
@@ -150,11 +151,11 @@ class _EditOrderScreenState extends State<EditOrderScreen> {
       backgroundColor: AppColors.background,
       appBar: const BackHeaderWidget(title: 'Editar Pedido'),
       body: _isLoading
-          ? const Center(
+          ? Center(
               child: CircularProgressIndicator(color: AppColors.accent),
             )
           : _isSaving
-              ? const Center(
+              ? Center(
                   child: CircularProgressIndicator(color: AppColors.accent),
                 )
               : productos.isEmpty

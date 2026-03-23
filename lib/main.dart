@@ -1,78 +1,173 @@
+import 'dart:async';
+
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
+import 'core/config/app_config.dart';
+import 'core/config/asset_branding_loader.dart';
 import 'core/constants/app_colors.dart';
 import 'core/database/db_helper.dart';
 import 'services/printer/printer_service.dart';
-import 'screens/splash_screen.dart';
+import 'services/supabase_sync_service.dart';
+import 'app_router.dart';
 
-void main() async {
-  WidgetsFlutterBinding.ensureInitialized();
-  
-  // Cargar variables de entorno desde archivo .env
-  try {
-    await dotenv.load(fileName: ".env");
-  } catch (e) {
-    debugPrint('Advertencia: No se pudo cargar el archivo .env: $e');
-    debugPrint('Asegúrate de que el archivo .env existe en la raíz del proyecto.');
-  }
-  
-  // Validar que las variables de entorno estén presentes
-  final supabaseUrl = dotenv.env['SUPABASE_URL'];
-  final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
-  final clienteId = dotenv.env['CLIENTE_ID'];
-  
-  if (supabaseUrl == null || supabaseAnonKey == null || clienteId == null) {
-    debugPrint('ERROR CRÍTICO: Variables de entorno requeridas no encontradas.');
-    debugPrint('Por favor, crea un archivo .env en la raíz del proyecto con:');
-    debugPrint('SUPABASE_URL=tu_url_supabase');
-    debugPrint('SUPABASE_ANON_KEY=tu_clave_anon');
-    debugPrint('CLIENTE_ID=tu_cliente_id');
-    throw Exception('Variables de entorno faltantes. Revisa el archivo .env');
-  }
-  
-  // Inicializar Supabase con variables de entorno
-  try {
-    await Supabase.initialize(
-      url: supabaseUrl,
-      anonKey: supabaseAnonKey,
-    );
-    debugPrint('Supabase inicializado correctamente');
-  } catch (e) {
-    debugPrint('ERROR: No se pudo inicializar Supabase: $e');
-    throw Exception('Error al inicializar Supabase: $e');
-  }
-  
-  // Inicializar databaseFactory para plataformas de escritorio
-  await DBHelper.initialize();
-  
-  // Inicializar servicio de impresión térmica
-  if (PrinterService.isPlatformSupported()) {
-    try {
-      final printerService = PrinterService();
-      await printerService.initialize();
-    } catch (e) {
-      debugPrint('Advertencia: No se pudo inicializar el servicio de impresión: $e');
+void _installGlobalErrorHandlers() {
+  FlutterError.onError = (FlutterErrorDetails details) {
+    FlutterError.presentError(details);
+    if (kDebugMode) {
+      debugPrint('FlutterError: ${details.exceptionAsString()}');
+      if (details.stack != null) debugPrint('${details.stack}');
     }
-  }
-  
-  // Permitir todas las orientaciones para soportar tablets en horizontal
-  await SystemChrome.setPreferredOrientations([
-    DeviceOrientation.portraitUp,
-    DeviceOrientation.portraitDown,
-    DeviceOrientation.landscapeLeft,
-    DeviceOrientation.landscapeRight,
-  ]);
-  
-  // Inicializar base de datos
+  };
+
+  PlatformDispatcher.instance.onError = (Object error, StackTrace stack) {
+    if (kDebugMode) {
+      debugPrint('PlatformDispatcher.onError: $error\n$stack');
+    }
+    return true;
+  };
+}
+
+void main() {
+  WidgetsFlutterBinding.ensureInitialized();
+  _installGlobalErrorHandlers();
+
+  runZonedGuarded(
+    () {
+      unawaited(_bootstrapApp());
+    },
+    (Object error, StackTrace stack) {
+      if (kDebugMode) {
+        debugPrint('Zone error: $error\n$stack');
+      }
+    },
+  );
+}
+
+Future<void> _bootstrapApp() async {
   try {
-    await DBHelper.db;
-  } catch (e) {
-    debugPrint('Error al inicializar base de datos: $e');
+    // En debug: cargar .env desde disco (no se incluye en el bundle de release).
+    // En release: usar --dart-define (ver README).
+    String? supabaseUrl;
+    String? supabaseAnonKey;
+    String? clienteId;
+
+    if (kReleaseMode) {
+      supabaseUrl = String.fromEnvironment('SUPABASE_URL', defaultValue: '');
+      supabaseAnonKey =
+          String.fromEnvironment('SUPABASE_ANON_KEY', defaultValue: '');
+      clienteId = String.fromEnvironment('CLIENTE_ID', defaultValue: '');
+    } else {
+      try {
+        await dotenv.load(fileName: '.env');
+        supabaseUrl = dotenv.env['SUPABASE_URL'];
+        supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY'];
+        clienteId = dotenv.env['CLIENTE_ID'];
+      } catch (e) {
+        if (kDebugMode) debugPrint('Advertencia: no se pudo cargar .env');
+      }
+    }
+
+    final bool supabaseEnvOk = supabaseUrl != null &&
+        supabaseUrl.isNotEmpty &&
+        supabaseAnonKey != null &&
+        supabaseAnonKey.isNotEmpty;
+
+    if (!supabaseEnvOk ||
+        clienteId == null ||
+        clienteId.isEmpty) {
+      if (kDebugMode) {
+        debugPrint(
+          'Modo degradado: faltan SUPABASE_URL, SUPABASE_ANON_KEY o CLIENTE_ID. '
+          'La app arranca en local; en debug usa .env; en release usa --dart-define.',
+        );
+      }
+    }
+
+    if (supabaseEnvOk) {
+      try {
+        await Supabase.initialize(
+          url: supabaseUrl,
+          anonKey: supabaseAnonKey,
+        ).timeout(const Duration(seconds: 15));
+        if (kDebugMode) debugPrint('Supabase inicializado correctamente');
+      } on TimeoutException catch (e) {
+        if (kDebugMode) {
+          debugPrint(
+            'Supabase: timeout al inicializar (continuando sin Supabase): $e',
+          );
+        }
+      } catch (e) {
+        if (kDebugMode) {
+          debugPrint('Error al inicializar Supabase (continuando sin Supabase): $e');
+        }
+      }
+    } else if (kDebugMode) {
+      debugPrint('Supabase no inicializado (URL o anon key vacíos).');
+    }
+
+    try {
+      await DBHelper.initialize();
+    } catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('DBHelper.initialize: $e\n$st');
+      }
+    }
+
+    if (PrinterService.isPlatformSupported()) {
+      try {
+        final printerService = PrinterService();
+        await printerService.initialize();
+      } catch (e) {
+        debugPrint('Advertencia: No se pudo inicializar el servicio de impresión: $e');
+      }
+    }
+
+    try {
+      await SystemChrome.setPreferredOrientations([
+        DeviceOrientation.portraitUp,
+        DeviceOrientation.portraitDown,
+        DeviceOrientation.landscapeLeft,
+        DeviceOrientation.landscapeRight,
+      ]);
+    } catch (e, st) {
+      if (kDebugMode) {
+        debugPrint('SystemChrome.setPreferredOrientations: $e\n$st');
+      }
+    }
+
+    try {
+      await DBHelper.db;
+    } catch (e) {
+      debugPrint('Error al inicializar base de datos: $e');
+    }
+
+    SupabaseSyncService.syncDailyReportsInBackground().catchError(
+      (Object e, StackTrace st) {
+        if (kDebugMode) {
+          debugPrint('syncDailyReportsInBackground: $e\n$st');
+        }
+      },
+    );
+
+    try {
+      final branding = await AssetBrandingLoader().load();
+      AppConfig.instance.initFromBranding(branding);
+    } catch (e) {
+      if (kDebugMode) {
+        debugPrint('Branding: no se pudo cargar, usando valores por defecto: $e');
+      }
+    }
+
+    runApp(const VacosApp());
+  } catch (e, st) {
+    if (kDebugMode) {
+      debugPrint('Bootstrap: error no manejado antes de runApp: $e\n$st');
+    }
+    runApp(const VacosApp());
   }
-  
-  runApp(const VacosApp());
 }
 
 class VacosApp extends StatelessWidget {
@@ -80,14 +175,14 @@ class VacosApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
-      title: 'De Vacos Urban Grill',
+    return MaterialApp.router(
+      title: AppConfig.instance.appName,
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         scaffoldBackgroundColor: AppColors.background,
-        appBarTheme: const AppBarTheme(
+        appBarTheme: AppBarTheme(
           backgroundColor: AppColors.primary,
-          iconTheme: IconThemeData(color: Colors.white),
+          iconTheme: const IconThemeData(color: Colors.white),
           elevation: 0,
         ),
         textTheme: const TextTheme(
@@ -99,7 +194,7 @@ class VacosApp extends StatelessWidget {
           brightness: Brightness.dark,
         ),
       ),
-      home: const SplashScreen(),
+      routerConfig: appRouter,
     );
   }
 }

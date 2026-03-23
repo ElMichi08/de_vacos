@@ -211,7 +211,7 @@ class _TestDataScreenState extends State<TestDataScreen> {
                 Navigator.pop(context);
                 _generarPedidos(cantidad);
               },
-              child: const Text(
+              child: Text(
                 'Continuar',
                 style: TextStyle(color: AppColors.accent),
               ),

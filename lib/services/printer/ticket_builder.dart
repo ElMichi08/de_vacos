@@ -2,6 +2,7 @@ import 'package:esc_pos_utils_plus/esc_pos_utils_plus.dart';
 import 'package:image/image.dart' as img;
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show debugPrint;
+import '../../core/config/app_config.dart';
 import '../../models/pedido.dart';
 import 'helpers/product_grouper.dart';
 import 'helpers/ticket_formatter.dart';
@@ -13,9 +14,9 @@ class TicketBuilder {
   /// Ancho de papel estándar para impresoras térmicas de 80mm
   static const int paperWidthMm = 80;
 
-  static const int logoMaxWidth80mm = 205;
+  static const int logoMaxWidth80mm = 102;
   
-  static const int logoMaxWidth56mm = 125;
+  static const int logoMaxWidth56mm = 62;
 
   // Cache de logos cargados para evitar cargar en cada impresión
   static img.Image? _cachedLogo80mm;
@@ -34,20 +35,33 @@ class TicketBuilder {
       return _cachedLogo80mm;
     }
     try {
-      Uint8List logoBytes;
+      Uint8List? logoBytes;
 
-      // Cargar el logo desde los assets de Flutter
-      try {
-        logoBytes = await rootBundle.load('logo.jpg').then((data) => data.buffer.asUint8List());
-      } catch (e) {
-        // Intentar con logo.png como fallback
+      // Preferir logo de marca desde config (branding)
+      final logoAssetPath = AppConfig.instance.logoAssetPath;
+      if (logoAssetPath != null && logoAssetPath.isNotEmpty) {
         try {
-          logoBytes = await rootBundle.load('logo.png').then((data) => data.buffer.asUint8List());
-        } catch (e2) {
-          debugPrint('No se pudo cargar logo desde assets: $e2');
-          return null;
+          logoBytes = await rootBundle.load(logoAssetPath).then((data) => data.buffer.asUint8List());
+        } catch (e) {
+          debugPrint('No se pudo cargar logo de marca ($logoAssetPath): $e');
         }
       }
+
+      // Fallback: logo por defecto en raíz de assets
+      if (logoBytes == null) {
+        try {
+          logoBytes = await rootBundle.load('logo.jpg').then((data) => data.buffer.asUint8List());
+        } catch (_) {
+          try {
+            logoBytes = await rootBundle.load('logo.png').then((data) => data.buffer.asUint8List());
+          } catch (e2) {
+            debugPrint('No se pudo cargar logo desde assets: $e2');
+            return null;
+          }
+        }
+      }
+
+      if (logoBytes == null) return null;
 
       // Decodificar la imagen
       final originalImage = img.decodeImage(logoBytes);
@@ -311,7 +325,7 @@ class TicketBuilder {
         styles: const PosStyles(
           fontType: PosFontType.fontB,
           width: PosTextSize.size1,
-          height: PosTextSize.size1,
+          height: PosTextSize.size2,
           bold: false,
         ),
       );
@@ -323,7 +337,7 @@ class TicketBuilder {
       styles: const PosStyles(
         fontType: PosFontType.fontB,
         width: PosTextSize.size1,
-        height: PosTextSize.size1,
+        height: PosTextSize.size2,
         bold: false,
       ),
     );
@@ -336,7 +350,7 @@ class TicketBuilder {
       styles: const PosStyles(
         fontType: PosFontType.fontB,
         width: PosTextSize.size1,
-        height: PosTextSize.size1,
+        height: PosTextSize.size2,
         bold: false,
       ),
     );
@@ -347,7 +361,7 @@ class TicketBuilder {
       styles: const PosStyles(
         fontType: PosFontType.fontB,
         width: PosTextSize.size1,
-        height: PosTextSize.size1,
+        height: PosTextSize.size2,
         bold: false,
       ),
     );

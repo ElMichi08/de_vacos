@@ -1,5 +1,6 @@
 import '../core/database/db_helper.dart';
 import '../models/pedido.dart';
+import 'facturacion/facturacion_service.dart';
 
 /// Servicio para gestionar pedidos
 class PedidoService {
@@ -285,8 +286,9 @@ class PedidoService {
     }
   }
 
-  /// Actualiza el estado de pago de un pedido
-  /// Opcionalmente puede actualizar la ruta de la foto de transferencia
+  /// Actualiza el estado de pago de un pedido.
+  /// Opcionalmente puede actualizar la ruta de la foto de transferencia.
+  /// Si el nuevo estado es "Cobrado", se notifica al servicio de facturación.
   static Future<int> actualizarEstadoPago(int id, String nuevoEstadoPago, {String? fotoTransferenciaPath}) async {
     try {
       final db = await DBHelper.db;
@@ -294,12 +296,19 @@ class PedidoService {
       if (fotoTransferenciaPath != null) {
         updateData['fotoTransferenciaPath'] = fotoTransferenciaPath;
       }
-      return await db.update(
+      final rows = await db.update(
         'pedidos',
         updateData,
         where: 'id = ?',
         whereArgs: [id],
       );
+      if (rows > 0 && nuevoEstadoPago == 'Cobrado') {
+        final pedido = await obtenerPorId(id);
+        if (pedido != null) {
+          await FacturacionService.instance.registrarVentaCobrada(pedido);
+        }
+      }
+      return rows;
     } catch (e) {
       throw Exception('Error al actualizar estado de pago: $e');
     }

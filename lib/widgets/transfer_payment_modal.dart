@@ -318,11 +318,11 @@ class _TransferPaymentModalState extends State<TransferPaymentModal> {
                             mainAxisSize: MainAxisSize.min,
                             children: [
                               if (_isLoading)
-                                const CircularProgressIndicator(
+                                CircularProgressIndicator(
                                   color: AppColors.accent,
                                 )
                               else
-                                const Icon(
+                                Icon(
                                   Icons.camera_alt,
                                   size: 64,
                                   color: AppColors.accent,

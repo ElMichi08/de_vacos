@@ -17,12 +17,14 @@ class BluetoothPrinterTransport implements PrinterTransport {
   Future<void> connect(DiscoveredPrinter printer) async {
     if (printer.type != AppPrinterType.bluetooth) {
       throw const PrinterConnectionException(
-          'El tipo de impresora no es Bluetooth');
+        'El tipo de impresora no es Bluetooth',
+      );
     }
 
     if (!_isPlatformSupported()) {
       throw const PrinterPlatformNotSupportedException(
-          'Bluetooth solo disponible en Android/iOS');
+        'Bluetooth solo disponible en Android/iOS',
+      );
     }
 
     try {
@@ -30,7 +32,8 @@ class BluetoothPrinterTransport implements PrinterTransport {
       final device = printer.extraData?['device'] as PrinterDevice?;
       if (device == null) {
         throw const PrinterConnectionException(
-            'Información del dispositivo no disponible');
+          'Información del dispositivo no disponible',
+        );
       }
 
       // Crear BluetoothPrinterInput a partir de los datos del dispositivo
@@ -52,7 +55,8 @@ class BluetoothPrinterTransport implements PrinterTransport {
         _connectedPrinter = printer;
       } else {
         throw const PrinterConnectionException(
-            'No se pudo establecer la conexión');
+          'No se pudo establecer la conexión',
+        );
       }
     } catch (e) {
       if (e is PrinterException) {
@@ -87,11 +91,13 @@ class BluetoothPrinterTransport implements PrinterTransport {
 
     // Validar que bytes no esté vacío
     if (bytes.isEmpty) {
-      throw const PrinterSendException('No se puede enviar una lista de bytes vacía');
+      throw const PrinterSendException(
+        'No se puede enviar una lista de bytes vacía',
+      );
     }
 
     // Validar que todos los bytes sean valores válidos (0-255)
-    for (var byte in bytes) {
+    for (final byte in bytes) {
       if (byte < 0 || byte > 255) {
         throw const PrinterSendException(
           'El formato de los datos no es válido para la impresora ESC/POS. Los bytes deben estar entre 0 y 255.',
@@ -100,7 +106,9 @@ class BluetoothPrinterTransport implements PrinterTransport {
     }
 
     try {
-      debugPrint('Enviando ${bytes.length} bytes ESC/POS a la impresora Bluetooth');
+      debugPrint(
+        'Enviando ${bytes.length} bytes ESC/POS a la impresora Bluetooth',
+      );
 
       // Enviar los datos usando el método send del plugin
       // El plugin espera List<int>, no Uint8List (esto causa ClassCastException en Android)
@@ -163,7 +171,8 @@ class BluetoothPrinterTransport implements PrinterTransport {
   Future<List<DiscoveredPrinter>> scanPrinters() async {
     if (!_isPlatformSupported()) {
       throw const PrinterPlatformNotSupportedException(
-          'Bluetooth directo solo disponible en Android/iOS');
+        'Bluetooth directo solo disponible en Android/iOS',
+      );
     }
 
     try {
@@ -190,9 +199,7 @@ class BluetoothPrinterTransport implements PrinterTransport {
           name: deviceName.isNotEmpty ? deviceName : 'Impresora sin nombre',
           address: deviceAddress,
           type: AppPrinterType.bluetooth,
-          extraData: {
-            'device': device,
-          },
+          extraData: {'device': device},
         );
       }).toList();
     } catch (e) {
@@ -206,4 +213,3 @@ class BluetoothPrinterTransport implements PrinterTransport {
     return !kIsWeb && (Platform.isAndroid || Platform.isIOS);
   }
 }
-

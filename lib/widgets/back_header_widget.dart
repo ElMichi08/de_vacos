@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:go_router/go_router.dart';
 import '../core/constants/app_colors.dart';
 
 class BackHeaderWidget extends StatelessWidget implements PreferredSizeWidget {
@@ -18,7 +19,7 @@ class BackHeaderWidget extends StatelessWidget implements PreferredSizeWidget {
         children: [
           IconButton(
             icon: const Icon(Icons.arrow_back, color: Colors.white, size: 28),
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => context.pop(),
           ),
           const SizedBox(width: 10),
           Expanded(
