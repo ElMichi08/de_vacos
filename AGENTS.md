@@ -124,11 +124,14 @@ Las skills se encuentran en `.agents/skills/` y se cargan **únicamente** en sub
 | Necesitas... | Skill | Ubicación |
 |---|---|---|
 | Definir/validar estructura de capas Flutter (UI -> Logic -> Data) | `flutter-architecting-apps` | `.agents/skills/flutter-architecting-apps/` |
-| Implementar feature con Clean Arch + Riverpod + Dio/Retrofit | `flutter-clean-arch` | `.agents/skills/flutter-clean-arch/` |
 | Implementar widgets, state management, routes, performance | `flutter-expert` | `.agents/skills/flutter-expert/` |
 | Escribir unit / widget / integration tests | `flutter-testing-apps` | `.agents/skills/flutter-testing-apps/` |
-| Análisis arquitectónico, diagramas, dependencias (multi-stack) | `senior-architect` | `.agents/skills/senior-architect/` |
+| SQLite, drift, sqflite, migraciones, queries optimizados | `flutter-working-with-databases` | `.agents/skills/flutter-working-with-databases/` |
+| Caching local, shared_preferences, estrategias de invalidación | `flutter-caching-data` | `.agents/skills/flutter-caching-data/` |
+| Code review automatizado, análisis de calidad Dart/Flutter | `flutter-dart-code-review` | `.agents/skills/flutter-dart-code-review/` |
 | Build nativo iOS/Android, React Native, store submissions | `senior-mobile` | `.agents/skills/senior-mobile/` |
+
+**Skills eliminadas:** `senior-architect` (genérico multi-stack, no aporta a Flutter puro), `flutter-clean-arch` (prescribe Riverpod + Dio/Retrofit, no alineado con la arquitectura actual del proyecto).
 
 **Regla:** El Orquestador nunca carga skills directamente. Instancia un sub-agente efímero con `Task tool` y le indica qué skill cargar. Esto mitiga el "Context Overload".
 
@@ -152,6 +155,80 @@ Este proyecto utiliza una arquitectura multi-agente:
    - Eliminar o refactorizar componentes existentes.
 
 3. **Mínimo Toque:** Los agentes de resolución deben modificar estrictamente lo necesario, aplicando principios SOLID y DRY, sin afectar la lógica de negocio circundante.
+
+### Output Contracts (obligatorios)
+
+Cada sub-agente DEBE retornar su resultado en un formato estructurado según el tipo de tarea. El Orquestador NO procesa resultados que no cumplan el contrato.
+
+**Exploración / Análisis:**
+```
+## Hallazgos
+- [hallazgo 1]
+- [hallazgo 2]
+
+## Archivos relevantes
+- path/to/file.dart — [qué hace o qué se encontró]
+
+## Recomendación
+[acción sugerida en 1-2 oraciones]
+```
+
+**Implementación / Bugfix:**
+```
+## Cambios realizados
+- [archivo]: [qué se cambió y por qué]
+
+## Tests
+- [nuevo/modificado]: [qué valida]
+- Resultado: [PASS/FAIL + count]
+
+## Verificación
+- `flutter analyze`: [0 issues / N issues]
+- `flutter test`: [N passed / N failed]
+```
+
+**Code Review:**
+```
+## Severidad: [CRITICAL / WARNING / INFO]
+## Problemas encontrados
+1. [archivo:línea] — [descripción del problema]
+
+## Sugerencias
+- [mejora propuesta]
+
+## Veredicto: [APROBADO / REQUIERE CAMBIOS]
+```
+
+### Contexto mínimo para sub-agentes
+
+Al instanciar un sub-agente con `Task tool`, el Orquestador DEBE seguir estas reglas para optimizar tokens:
+
+1. **Solo incluir archivos relevantes** — NO enviar todo el codebase. Especificar paths exactos que el sub-agente necesita leer o modificar.
+2. **Incluir constraints del proyecto** — Mencionar reglas críticas (ej: "usar GoRouter, nunca Navigator", "Services son estáticos", "DB migrations en db_helper.dart v6").
+3. **Especificar el output contract esperado** — Indicar qué formato de respuesta se espera (ver sección anterior).
+4. **Indicar skill a cargar** — Si aplica, decir explícitamente qué skill debe cargar el sub-agente (ej: "Carga la skill `flutter-testing-apps` antes de empezar").
+5. **NO duplicar AGENTS.md completo** — El sub-agente ya tiene acceso al archivo vía system prompt. Solo referenciar secciones específicas si es necesario.
+
+**Ejemplo de prompt óptimo para sub-agente:**
+```
+Tarea: Escribir tests unitarios para InsumoService.
+Archivos a leer: lib/services/insumo_service.dart, lib/models/insumo.dart, test/services/pedido_service_test.dart (como referencia de patrón).
+Constraints: Tests usan SQLite real con testDbPathOverride. tearDown debe llamar DBHelper.deleteTestDb(). No usar mocks para DB.
+Skill: Carga `flutter-testing-apps`.
+Output esperado: Contrato de Implementación (ver sección 8 de AGENTS.md).
+```
+
+### Post-validación del Orquestador
+
+Después de recibir el resultado de un sub-agente, el Orquestador DEBE ejecutar estos pasos antes de dar la tarea por completada:
+
+1. **Verificar contrato** — ¿El output del sub-agente cumple el formato del Output Contract esperado? Si no, rechazar y re-delegar con instrucciones más claras.
+2. **Correr `flutter analyze`** — Verificar 0 issues. Si hay issues nuevos, crear sub-agente de resolución para corregirlos.
+3. **Correr `flutter test`** — Verificar que todos los tests pasan (incluyendo los nuevos). Si hay fallos, crear sub-agente de resolución.
+4. **Guardar en Engram** — Si la tarea involucró una decisión arquitectónica, bugfix, o descubrimiento, llamar `mem_save` inmediatamente.
+5. **Actualizar TodoWrite** — Marcar la tarea como `completed` y reportar al usuario.
+
+**Regla de 3 intentos:** Si un sub-agente falla la post-validación 3 veces consecutivas, el Orquestador DEBE detenerse, reportar el problema al usuario con `Question tool`, y pedir dirección.
 
 ### Herramientas del pipeline
 
