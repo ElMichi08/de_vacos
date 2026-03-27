@@ -92,6 +92,7 @@ Las skills se cargan **únicamente** en sub-agentes, nunca en el Orquestador.
 | Descubrir e instalar skills | `find-skills` | `.agents/skills/` |
 | Git commit messages | `git-commit` | `.agents/skills/` |
 | GitHub CLI | `gh-cli` | `.agents/skills/` |
+| Documentación de código y README | `code-documenter` | `.agents/skills/` |
 | Testing QA patterns | `qa-expert` | skills.sh (pendiente instalar) |
 | Security review | `security-review` | skills.sh (pendiente instalar) |
 
