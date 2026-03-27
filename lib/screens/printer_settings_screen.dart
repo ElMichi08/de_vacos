@@ -438,8 +438,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
     return Row(
       children: [
         Expanded(
-          // ignore: deprecated_member_use
-          // TODO: Migrar a RadioGroup cuando la nueva API esté disponible en Flutter estable
+          // ignore: deprecated_member_use - TODO: Migrar a RadioGroup cuando Flutter lo soporte
           child: RadioListTile<PaperSize>(
             title: const Text(
               '80mm',
@@ -462,8 +461,7 @@ class _PrinterSettingsScreenState extends State<PrinterSettingsScreen> {
           ),
         ),
         Expanded(
-          // ignore: deprecated_member_use
-          // TODO: Migrar a RadioGroup cuando la nueva API esté disponible en Flutter estable
+          // ignore: deprecated_member_use - TODO: Migrar a RadioGroup cuando Flutter lo soporte
           child: RadioListTile<PaperSize>(
             title: const Text(
               '56mm',

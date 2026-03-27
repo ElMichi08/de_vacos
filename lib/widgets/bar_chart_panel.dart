@@ -7,11 +7,7 @@ class BarChartPanel extends StatelessWidget {
   final List<Map<String, dynamic>> data;
   final String title;
 
-  const BarChartPanel({
-    super.key,
-    required this.data,
-    required this.title,
-  });
+  const BarChartPanel({super.key, required this.data, required this.title});
 
   @override
   Widget build(BuildContext context) {
@@ -28,18 +24,11 @@ class BarChartPanel extends StatelessWidget {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Icon(
-                  Icons.bar_chart,
-                  size: 48,
-                  color: Colors.white38,
-                ),
+                const Icon(Icons.bar_chart, size: 48, color: Colors.white38),
                 const SizedBox(height: 16),
                 Text(
                   'No hay datos para mostrar',
-                  style: const TextStyle(
-                    color: Colors.white70,
-                    fontSize: 16,
-                  ),
+                  style: const TextStyle(color: Colors.white70, fontSize: 16),
                 ),
               ],
             ),
@@ -78,7 +67,7 @@ class BarChartPanel extends StatelessWidget {
                     enabled: true,
                     touchTooltipData: BarTouchTooltipData(
                       getTooltipColor: (group) => AppColors.cardBackground,
-                      tooltipRoundedRadius: 8,
+                      tooltipBorderRadius: BorderRadius.circular(8),
                     ),
                   ),
                   titlesData: FlTitlesData(
@@ -146,23 +135,24 @@ class BarChartPanel extends StatelessWidget {
                       width: 1,
                     ),
                   ),
-                  barGroups: data.asMap().entries.map((entry) {
-                    final index = entry.key;
-                    final item = entry.value;
-                    return BarChartGroupData(
-                      x: index,
-                      barRods: [
-                        BarChartRodData(
-                          toY: (item['value'] as num).toDouble(),
-                          color: AppColors.accent,
-                          width: 20,
-                          borderRadius: const BorderRadius.vertical(
-                            top: Radius.circular(4),
-                          ),
-                        ),
-                      ],
-                    );
-                  }).toList(),
+                  barGroups:
+                      data.asMap().entries.map((entry) {
+                        final index = entry.key;
+                        final item = entry.value;
+                        return BarChartGroupData(
+                          x: index,
+                          barRods: [
+                            BarChartRodData(
+                              toY: (item['value'] as num).toDouble(),
+                              color: AppColors.accent,
+                              width: 20,
+                              borderRadius: const BorderRadius.vertical(
+                                top: Radius.circular(4),
+                              ),
+                            ),
+                          ],
+                        );
+                      }).toList(),
                 ),
               ),
             ),
@@ -174,8 +164,9 @@ class BarChartPanel extends StatelessWidget {
 
   double _getMaxValue() {
     if (data.isEmpty) return 100;
-    final max = data.map((e) => (e['value'] as num).toDouble()).reduce((a, b) => a > b ? a : b);
+    final max = data
+        .map((e) => (e['value'] as num).toDouble())
+        .reduce((a, b) => a > b ? a : b);
     return max * 1.2; // Agregar 20% de espacio arriba
   }
 }
-

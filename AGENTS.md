@@ -1,5 +1,17 @@
 # AGENTS.md - De Vacos Urban Grill POS
 
+## Regla General (CRITICAL)
+
+**TODAS las tareas de este proyecto DEBEN usar el pipeline de Michibot.** 
+No importa cómo se inicie la conversación — cada tarea pasa por:
+1. Orquestador (Michibot) planifica
+2. Lanza sub-agentes según necesidad (Skill Manager → Desarrollador → QA → IC)
+3. Retorna resultado con Output Contract
+
+El trigger "Michibot [tarea]" es solo una forma de iniciar, pero el pipeline aplica a **cualquier** tarea.assignada.
+
+---
+
 ## 1. Project Overview
 
 App POS (Point of Sale) multiplataforma para "De Vacos Urban Grill", construida con **Flutter/Dart**.
@@ -10,298 +22,168 @@ App POS (Point of Sale) multiplataforma para "De Vacos Urban Grill", construida 
 - **Impresión térmica:** Subsistema con transporte abstracto (USB/Bluetooth).
 - **Branding dinámico:** Configurable via `assets/config/branding.json`.
 
-Para detalles extendidos (despliegue, RLS, panel web, auth admin), ver **[README.md](README.md)**.
+Para detalles extendidos, ver **[README.md](README.md)**.
 
-## 2. Dev Environment & Setup
+## 2. Dev Setup
 
 **Requisitos:** Flutter SDK 3+, Dart, Android Studio / VS Code.
 
-**Setup inicial:**
-```bash
-flutter pub get
-```
+**Setup:** `flutter pub get`
 
-**Variables de entorno (desarrollo):**
-Crear `.env` en la raíz con:
-```
-SUPABASE_URL=...
-SUPABASE_ANON_KEY=...
-CLIENTE_ID=...
-```
-Referencia: `env.example`. El archivo `.env` **no se incluye en el bundle** de release; solo se carga en modo debug.
+**CRITICAL:** Load @agents/rules/*.md only when the specific task requires it. Do NOT load all instructions preemptively.
 
-## 3. Build & Run Commands
+## 3. Commands
 
 | Comando | Propósito |
 |---------|-----------|
 | `flutter pub get` | Instalar dependencias |
-| `flutter test` | Ejecutar todos los tests (67 tests, sin credenciales reales) |
-| `flutter run` | Ejecutar en dispositivo/emulador conectado |
-| `flutter run -d chrome` | Ejecutar panel web admin en navegador |
-| `flutter analyze` | Análisis estático de Dart |
-| `flutter build apk --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=... --dart-define=CLIENTE_ID=...` | Build producción Android |
-| `flutter build apk --obfuscate --split-debug-info=build/symbols` | Build ofuscado para release |
+| `flutter test` | Ejecutar tests |
+| `flutter run` | Ejecutar en dispositivo/emulador |
+| `flutter analyze` | Análisis estático |
+| `flutter build apk` | Build producción Android |
 
-**Importante:** Correr `flutter test` y `flutter analyze` antes de cada commit.
+Ref: `@agents/rules/development-commands.md` para detalles completos.
 
-## 4. Testing Instructions
+## 4. Testing
 
-### Estructura actual
-- **Tests de servicios** (8 suites, 67+ tests): `test/services/` -- `caja_service_test`, `pedido_service_test`, `pedido_service_extended_test`, `producto_service_test`, `insumo_service_test`, `ventas_service_test`, `numero_orden_test`, `db_helper_test`.
-- **Tests de boot/router**: `test/app_boot_test.dart`, `test/app_router_extra_casting_test.dart`, `test/supabase_sync_empty_cliente_test.dart`.
-- **Pendientes:** `test/screens/` y `test/widgets/` existen pero están vacíos.
+- **Tests existentes:** 67+ tests en `test/services/` y `test/`
+- **Pendientes:** `test/screens/` y `test/widgets/` vacíos
 
-### Patrón de DB para tests
-Los tests de licencia y splash usan mocks. Para tests que usan SQLite real:
-- Cada `tearDown` limpia la BD asincrónicamente mediante `DBHelper.deleteTestDb()`, evitando bloqueos de archivos `.db`.
-- Se soporta `testDbPathOverride` para aislar la base de datos en tests.
+Ref: `@agents/rules/development-commands.md` para estructura y reglas.
 
-### Reglas
-- Correr `flutter test` completo antes de mergear.
-- Agregar o actualizar tests para el código que cambies, incluso si nadie lo pidió.
-- Corregir errores de test o tipo hasta que la suite esté verde.
+## 5. Architecture
 
-## 5. Code Conventions & Architecture
+- **Models:** `lib/models/` — DTOs (Pedido, Producto, Caja, Insumo, etc.)
+- **Services:** `lib/services/` — Lógica de negocio estática
+- **Database:** `lib/core/database/` — SQLite con migraciones v6
+- **Screens:** `lib/screens/` — 13 pantallas
+- **Widgets:** `lib/widgets/` — 16 componentes
+- **Routing:** GoRouter (NUNCA usar Navigator.of(context).pushReplacement)
 
-### Capas del proyecto
+Ref: `@agents/rules/architecture.md` para deuda técnica y detalles.
 
-| Capa | Ubicación | Responsabilidad |
-|------|-----------|-----------------|
-| **Models** | `lib/models/` | DTOs: Pedido, Producto, Caja, Insumo, Extra, Acompanante, ProductoVariante, RecetaDetalle, ProductoSeleccionado |
-| **Services** | `lib/services/` | Lógica de negocio (estática): PedidoService, CajaService, ProductoService, InsumoService, VentasService, RecetaService, ImageService |
-| **Database** | `lib/core/database/` | DBHelper -- singleton SQLite con migraciones incrementales (v6) |
-| **Config** | `lib/core/config/` | BrandingConfig cargado desde asset JSON |
-| **Screens** | `lib/screens/` | 13 pantallas (Home, Caja, Cocina, Orders, Products, Insumos, Reports, Printer, Test Data) |
-| **Widgets** | `lib/widgets/` | 16 componentes reutilizables (modales, formularios, gráficos) |
-| **Panel Web** | `lib/panel/` | Vistas read-only para admin (Supabase) |
-| **Routing** | `lib/app_router.dart` | GoRouter con rutas POS + panel web + feature-flag guards |
-| **Printer** | `lib/services/printer/` | Subsistema de impresión térmica con transporte abstracto (USB/Bluetooth), ticket builder y helpers |
-| **Facturación** | `lib/services/facturacion/` | Interfaz + implementación pluggable (incluye no-op stub) |
+## 6. Security
 
-Para tabla completa con alineación a skill flutter-architecting-apps, ver **[README.md](README.md)**.
+- **Debug:** `.env` con SUPABASE_URL, SUPABASE_ANON_KEY, CLIENTE_ID
+- **Release:** Usar `--dart-define` en build time
+- **NUNCA commitear** `.env` ni credenciales reales
+- **Licencias:** Periodo de gracia 14 días sin internet
 
-### Reglas de enrutamiento (GoRouter)
+**OWASP:** Para auditorías de seguridad, cargar skill `@sergiodxa/agent-skills/owasp-security-check`
 
-Toda navegación global usa `MaterialApp.router` con `GoRouter`.
-
-- **USAR:** `context.go('/ruta')`, `context.push('/ruta')` y funciones nativas de GoRouter.
-- **NUNCA USAR:** `Navigator.of(context).pushReplacement(...)` -- desincroniza el historial de GoRouter, forzando recargas accidentales de la raíz (`/splash`) al navegar hacia atrás o ejecutar `context.pop()`.
-
-### Base de datos local (SQLite)
-
-- Tablas: `productos`, `pedidos`, `caja_movimientos`, `insumos`, `receta_detalle`.
-- Migraciones incrementales en `lib/core/database/db_helper.dart` (versión actual: 6).
-- Singleton pattern con soporte de `testDbPathOverride` para tests.
-
-### Numeración de órdenes
-
-`obtenerSiguienteNumeroOrden()` calcula `(MAX(numeroOrden) del día % 100) + 1`. Se reinicia automáticamente al pasar 100 pedidos o al cambiar de día.
-
-### Print Service
-
-Los layouts de tickets (`lib/services/printer/ticket_builder.dart`) usan escalado de logo dinámico al 50% y fuentes estandarizadas (`PosTextSize.size2`).
-
-### Deuda técnica identificada
-
-- Services son estáticos y combinan lógica de negocio con acceso a datos (sin Repositories ni ViewModels separados).
-- Directorios `test/screens/` y `test/widgets/` vacíos.
-
-## 6. Security & Environment Variables
-
-- **Debug:** `.env` en raíz con `SUPABASE_URL`, `SUPABASE_ANON_KEY`, `CLIENTE_ID`. Se carga desde disco solo en debug.
-- **Release:** Usar `--dart-define` en build time. No se usa dotenv.
-- **NUNCA commitear** `.env` ni archivos con credenciales reales.
-- **Licencias:** Verificación al iniciar. Periodo de gracia sin internet: 14 días (configurable en `lib/core/constants/security_constants.dart`).
-- **Reportes:** Envío en segundo plano (total ventas, pedidos, top 3 productos). Un fallo de envío no bloquea al usuario.
-- **Ofuscación en release:** `build/symbols` no se sube al repositorio.
-
-Detalle completo: **[docs/LICENCIAS_Y_REPORTES.md](docs/LICENCIAS_Y_REPORTES.md)**.
+Ref: `@agents/rules/security.md` para detalles completos.
 
 ## 7. Skills Registry
 
-Las skills se encuentran en `.agents/skills/` y se cargan **únicamente** en sub-agentes dedicados, nunca en el Orquestador, para mantener el contexto limpio.
+Las skills se cargan **únicamente** en sub-agentes, nunca en el Orquestador.
 
 | Necesitas... | Skill | Ubicación |
 |---|---|---|
-| Definir/validar estructura de capas Flutter (UI -> Logic -> Data) | `flutter-architecting-apps` | `.agents/skills/flutter-architecting-apps/` |
-| Implementar widgets, state management, routes, performance | `flutter-expert` | `.agents/skills/flutter-expert/` |
-| Escribir unit / widget / integration tests | `flutter-testing-apps` | `.agents/skills/flutter-testing-apps/` |
-| SQLite, drift, sqflite, migraciones, queries optimizados | `flutter-working-with-databases` | `.agents/skills/flutter-working-with-databases/` |
-| Caching local, shared_preferences, estrategias de invalidación | `flutter-caching-data` | `.agents/skills/flutter-caching-data/` |
-| Code review automatizado, análisis de calidad Dart/Flutter | `flutter-dart-code-review` | `.agents/skills/flutter-dart-code-review/` |
-| Build nativo iOS/Android, React Native, store submissions | `senior-mobile` | `.agents/skills/senior-mobile/` |
+| Estructura de capas Flutter | `flutter-architecting-apps` | `.agents/skills/` |
+| Widgets, state, routes, performance | `flutter-expert` | `.agents/skills/` |
+| Unit / widget / integration tests | `flutter-testing-apps` | `.agents/skills/` |
+| SQLite, migraciones, queries | `flutter-working-with-databases` | `.agents/skills/` |
+| Caching local, shared_preferences | `flutter-caching-data` | `.agents/skills/` |
+| Code review Dart/Flutter | `flutter-dart-code-review` | `.agents/skills/` |
+| Principios de diseño Clean Code, SOLID, DRY | `flutter-clean-solid-dry` | `.agents/skills/` |
+| Migraciones SQLite centralizadas (PRAGMA/ALTER) | `flutter-sqlite-migrations` | `.agents/skills/` |
+| Build nativo iOS/Android | `senior-mobile` | `.agents/skills/` |
+| Auditorías OWASP Top 10 | `owasp-security-check` | `.agents/skills/` |
+| Descubrir e instalar skills | `find-skills` | `.agents/skills/` |
+| Git commit messages | `git-commit` | `.agents/skills/` |
+| GitHub CLI | `gh-cli` | `.agents/skills/` |
+| Testing QA patterns | `qa-expert` | skills.sh (pendiente instalar) |
+| Security review | `security-review` | skills.sh (pendiente instalar) |
 
-**Skills eliminadas:** `senior-architect` (genérico multi-stack, no aporta a Flutter puro), `flutter-clean-arch` (prescribe Riverpod + Dio/Retrofit, no alineado con la arquitectura actual del proyecto).
+### Skill Manager Agent
 
-**Regla:** El Orquestador nunca carga skills directamente. Instancia un sub-agente efímero con `Task tool` y le indica qué skill cargar. Esto mitiga el "Context Overload".
+**Propósito:** Gestionar el ciclo de vida de skills — buscar, instalar, crear y documentar.
 
-## 8. Agent Orchestration (SDD Pipeline)
+**Cuándo se activa:** Cuando el Orquestador detecta que no existe skill para una tarea en el registry.
 
-### Roles
+**Flujo completo:** Ver `@agents/rules/orchestration.md#skill-manager`.
 
-Este proyecto utiliza una arquitectura multi-agente:
+**Lineamientos para crear skills propias:**
+- **Calidad de código:** Aplicar reglas de `flutter-dart-code-review`
+- **Seguridad:** Aplicar reglas de `owasp-security-check`
 
-- **Orquestador Principal (SDD Orchestrator):** **NUNCA** hace trabajo real ni escribe código directamente. Su rol es coordinar el flujo, instanciar sub-agentes efímeros (con contexto limpio) mediante `Task tool`, delegar la ejecución, y validar los resultados. Usa `TodoWrite` para planificación y tracking visible al usuario.
-- **Arquitecto / Documentador:** Sub-agente responsable de explorar el estado del repositorio, diseñar la estructura del proyecto (con skill `flutter-architecting-apps`), y actualizar documentación (`README.md`, estado arquitectónico) para evitar pérdida de contexto.
-- **Implementers (Spec Writer / Testing / Resolución):** Sub-agentes efímeros levantados bajo demanda para ejecutar tareas aisladas. Cada uno recibe un prompt detallado con el contexto mínimo necesario.
+**Persistencia:** Toda acción se guarda en Engram (mem_save).
 
-### Reglas de ejecución
+## 8. Orchestration
 
-1. **Contratos de Resultado:** Cada sub-agente debe producir un output estructurado (plan en markdown, informe de errores, diff de cambios) que sirva como input para la siguiente fase. Sin contratos, no hay orquestación.
+### Roles del Pipeline
 
-2. **Puntos de Aprobación Humana (HITL):** El Orquestador DEBE detenerse y pedir confirmación al humano (usando `Question tool`) antes de:
-   - Desplegar sub-agentes de implementación que modifiquen código.
-   - Sobreescribir arquitectura clave o decisiones de diseño.
-   - Eliminar o refactorizar componentes existentes.
+| Rol | Responsabilidad | Cuándo se activa |
+|-----|-----------------|------------------|
+| **Orquestador** | Coordina flujo, planifica, lanza sub-agentes | Siempre (trigger Michibot), nunca ejecuta solo delega tareas |
+| **Skill Manager** | Busca, instala, crea skills | Cuando se necesita skill no existente |
+| **Desarrollador** | Crea, edita, elimina código + pruebas unitarias | Para implementación de features/bugfixes |
+| **QA** | Valida tests del Dev, crea pruebas de integración | Después de implementación del Desarrollador |
+| **Ingeniero Cybersecurity** | Detecta vulnerabilidades, reporta cambios | Después de QA o en paralelo |
+| **PM (Project Manager)** | Último revisor de calidad, aplica commits convencionales, ejecuta push | Después de IC (o QA si no hay vulnerabilidades) |
 
-3. **Mínimo Toque:** Los agentes de resolución deben modificar estrictamente lo necesario, aplicando principios SOLID y DRY, sin afectar la lógica de negocio circundante.
+### Flujo de Implementación
 
-### Output Contracts (obligatorios)
-
-Cada sub-agente DEBE retornar su resultado en un formato estructurado según el tipo de tarea. El Orquestador NO procesa resultados que no cumplan el contrato.
-
-**Exploración / Análisis:**
 ```
-## Hallazgos
-- [hallazgo 1]
-- [hallazgo 2]
-
-## Archivos relevantes
-- path/to/file.dart — [qué hace o qué se encontró]
-
-## Recomendación
-[acción sugerida en 1-2 oraciones]
-```
-
-**Implementación / Bugfix:**
-```
-## Cambios realizados
-- [archivo]: [qué se cambió y por qué]
-
-## Tests
-- [nuevo/modificado]: [qué valida]
-- Resultado: [PASS/FAIL + count]
-
-## Verificación
-- `flutter analyze`: [0 issues / N issues]
-- `flutter test`: [N passed / N failed]
+1. Orquestador (Michibot) → Lanza Desarrollador (implementa)
+2. Desarrollador → Retorna código + tests unitarios
+3. Orquestador → Lanza QA (valida tests, crea integración)
+4. QA → Retorna reporte de errores/mejoras
+5. Si hay errores → Regresa al Desarrollador
+6. Orquestador → Lanza IC (auditoría seguridad)
+7. IC → Retorna reporte de vulnerabilidades
+8. Si hay vulnerabilidades → Regresa al Desarrollador
+9. Si todo OK → Lanza PM (revisión final + git)
+10. PM → Retorna commit y push
+11. Finalizar
 ```
 
-**Code Review:**
-```
-## Severidad: [CRITICAL / WARNING / INFO]
-## Problemas encontrados
-1. [archivo:línea] — [descripción del problema]
+### Reglas de Ejecución
 
-## Sugerencias
-- [mejora propuesta]
+- **Delegación Obligatoria:** El Orquestador DEBE usar `Task tool` para lanzar sub-agentes. NUNCA hacer trabajo directo de ningún rol (Desarrollador, QA, IC, Skill Manager), si un subagente le dice que si quiere que le pase una tarea para que el orquestador lo haga, NUNCA debe hacer, mas bien delegar a otro subagente usando `Task tool`.
+- **Fallback de Sub-agentes:** Si un sub-agente falla (modelo no disponible, timeout, error):
+  1. Primero: Verificar si hay otros modelos disponibles en opencode.json
+  2. Si hay alternativas: Reintentar con otro tipo de sub-agente
+  3. Si no hay alternativas: Preguntar al usuario (Question tool) antes de continuar
+- **Identificación del Orquestador:** Toda respuesta debe incluir "michito-[rol]:" como prefijo:
+   - Michibot (Orquestador) → `Michibot:`
+   - Desarrollador → `michito-desarrollador:`
+   - QA → `michito-qa:`
+   - IC (Cybersecurity) → `michito-ic:`
+   - Skill Manager → `michito-skill-manager:`
+   
+   El identificador debe usar color **amarillo** (#FFD700) para contrastar con el texto verde normal.
+- **Contratos de Resultado:** Cada rol debe producir output estructurado.
+- **HITL:** Pedir confirmación antes de cambios de código significativos.
+- **Mínimo Toque:** Modificar solo lo necesario.
 
-## Veredicto: [APROBADO / REQUIERE CAMBIOS]
-```
+Ref: `@agents/rules/orchestration.md` para flujos completos, Output Contracts, contexto mínimo.
 
-### Contexto mínimo para sub-agentes
+## 9. Engram
 
-Al instanciar un sub-agente con `Task tool`, el Orquestador DEBE seguir estas reglas para optimizar tokens:
+Sistema de memoria persistente para reducir pérdida de contexto.
 
-1. **Solo incluir archivos relevantes** — NO enviar todo el codebase. Especificar paths exactos que el sub-agente necesita leer o modificar.
-2. **Incluir constraints del proyecto** — Mencionar reglas críticas (ej: "usar GoRouter, nunca Navigator", "Services son estáticos", "DB migrations en db_helper.dart v6").
-3. **Especificar el output contract esperado** — Indicar qué formato de respuesta se espera (ver sección anterior).
-4. **Indicar skill a cargar** — Si aplica, decir explícitamente qué skill debe cargar el sub-agente (ej: "Carga la skill `flutter-testing-apps` antes de empezar").
-5. **NO duplicar AGENTS.md completo** — El sub-agente ya tiene acceso al archivo vía system prompt. Solo referenciar secciones específicas si es necesario.
+- **Guardar:** Después de bugfix, decisiones arquitectónicas, descubrimientos.
+- **Buscar:** Al inicio de sesión (`mem_context`), antes de tareas (`mem_search`).
+- **Cerrar:** Siempre ejecutar `mem_session_summary`.
 
-**Ejemplo de prompt óptimo para sub-agente:**
-```
-Tarea: Escribir tests unitarios para InsumoService.
-Archivos a leer: lib/services/insumo_service.dart, lib/models/insumo.dart, test/services/pedido_service_test.dart (como referencia de patrón).
-Constraints: Tests usan SQLite real con testDbPathOverride. tearDown debe llamar DBHelper.deleteTestDb(). No usar mocks para DB.
-Skill: Carga `flutter-testing-apps`.
-Output esperado: Contrato de Implementación (ver sección 8 de AGENTS.md).
-```
-
-### Post-validación del Orquestador
-
-Después de recibir el resultado de un sub-agente, el Orquestador DEBE ejecutar estos pasos antes de dar la tarea por completada:
-
-1. **Verificar contrato** — ¿El output del sub-agente cumple el formato del Output Contract esperado? Si no, rechazar y re-delegar con instrucciones más claras.
-2. **Correr `flutter analyze`** — Verificar 0 issues. Si hay issues nuevos, crear sub-agente de resolución para corregirlos.
-3. **Correr `flutter test`** — Verificar que todos los tests pasan (incluyendo los nuevos). Si hay fallos, crear sub-agente de resolución.
-4. **Guardar en Engram** — Si la tarea involucró una decisión arquitectónica, bugfix, o descubrimiento, llamar `mem_save` inmediatamente.
-5. **Actualizar TodoWrite** — Marcar la tarea como `completed` y reportar al usuario.
-
-**Regla de 3 intentos:** Si un sub-agente falla la post-validación 3 veces consecutivas, el Orquestador DEBE detenerse, reportar el problema al usuario con `Question tool`, y pedir dirección.
-
-### Herramientas del pipeline
-
-| Herramienta | Uso en el pipeline |
-|---|---|
-| `Task tool` | Instanciar sub-agentes efímeros con contexto limpio |
-| `TodoWrite` | Planificar tareas, tracking de progreso visible al usuario |
-| `Question tool` | Implementar Human Gates (HITL) |
-| `Engram (mem_*)` | Persistir decisiones, bugs, descubrimientos entre sesiones |
-
-## 9. Engram (Persistent Memory)
-
-El proyecto usa **Engram MCP** para persistir aprendizajes y reducir la pérdida de contexto entre sesiones.
-
-### Cuándo guardar (`mem_save`)
-- Después de cada bugfix completado.
-- Después de cada decisión arquitectónica o de diseño.
-- Al descubrir algo no obvio del codebase.
-- Al cambiar configuración o setup.
-- Al establecer un patrón o convención nueva.
-
-### Cuándo buscar (`mem_search` / `mem_context`)
-- Al inicio de cada sesión: `mem_context` para recuperar contexto reciente.
-- Antes de trabajar en algo que pudo haberse hecho antes: `mem_search` con keywords.
-- Cuando el usuario menciona un tema sin contexto previo.
-
-### Al cerrar sesión (`mem_session_summary`)
-**Obligatorio.** Guardar resumen estructurado con: Goal, Instructions, Discoveries, Accomplished, Next Steps, Relevant Files.
+Ref: `@agents/rules/engram.md` para formato y reglas.
 
 ## 10. Intake Protocol (Michibot)
 
 ### Trigger
-Cuando el usuario diga **"Michibot tengo una nueva tarea"**, el Orquestador DEBE ejecutar el siguiente protocolo de intake ANTES de hacer cualquier otra cosa.
+Usuario dice: "Michibot [tarea]"
 
-### Paso 1: Recuperar contexto (automático, no mostrar al usuario)
-- Ejecutar `mem_context` para recuperar sesiones recientes.
-- Ejecutar `mem_search` con keywords relevantes del proyecto para traer decisiones y aprendizajes previos.
-- Este paso es interno; no mostrar el resultado al usuario.
+### Flujo
+1. **Analizar** — Deducir: tipo (feature/bug/refactor/testing), objetivo, alcance
+2. **Confirmar** — Si hay ambigüedad, UNA pregunta clarificadora
+3. **Ejecutar** — Lanzar sub-agentes según plan
 
-### Paso 2: Recopilar información (Question tool)
-Hacer las siguientes preguntas al usuario usando `Question tool` en una sola invocación:
+### Regla
+- Objetivo claro → ejecutar directo
+- Ambigüedad → UNA pregunta, no 4
+- "sí, proceed" → skipear confirmación
 
-**Pregunta 1 - Tipo de tarea:**
-Opciones:
-- Feature nueva
-- Bugfix
-- Refactor / Deuda técnica
-- Testing
-- Investigación / Análisis
-- Documentación
-
-**Pregunta 2 - Objetivo:**
-(Campo libre) "Describí brevemente qué necesitas lograr."
-
-**Pregunta 3 - Alcance:**
-(Campo libre) "Qué archivos o módulos están involucrados? Hay algo que NO deba tocarse?"
-
-**Pregunta 4 - Nivel de autonomía:**
-Opciones:
-- Máximo control: mostrar plan completo antes de tocar cualquier archivo
-- Moderado: pedir aprobación solo antes de cambios críticos (Recommended)
-- Alta autonomía: implementar sin aprobación intermedia, mostrar resultado final
-
-### Paso 3: Planificar (TodoWrite)
-Con las respuestas del Paso 2, el Orquestador:
-1. Crea un plan de tareas estructurado con `TodoWrite`.
-2. Identifica qué skills necesitará cada sub-agente (ver sección 7).
-3. Presenta el plan al usuario para aprobación (si el nivel de autonomía lo requiere).
-
-### Paso 4: Ejecutar
-Lanzar sub-agentes efímeros con `Task tool` según el plan aprobado, respetando las reglas de la sección 8 (contratos de resultado, HITL, mínimo toque).
-
-### Nota sobre modelos
-- El **Orquestador (Build)** usa `Claude Opus 4.6 Thinking` para razonamiento complejo y coordinación.
-- Los **sub-agentes (General / Explore)** usan `Claude Sonnet 4.6` para ejecución eficiente y ahorro de tokens.
-- Esta configuración se define en `opencode.json` del proyecto.
+### Ejemplo
+- "Michibot agrega dark mode al Settings" → ejecutar
+- "Michibot arregla el bug de pagos" → confirmar alcance antes

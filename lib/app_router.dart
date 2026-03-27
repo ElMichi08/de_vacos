@@ -40,7 +40,10 @@ String? _redirectByFeature(BuildContext context, GoRouterState state) {
   if (path.startsWith('/panel') || path == '/' || path == '/home') {
     return null;
   }
-  final base = path.split('/').where((s) => s.isNotEmpty).isEmpty ? '/' : '/${path.split('/').where((s) => s.isNotEmpty).first}';
+  final base =
+      path.split('/').where((s) => s.isNotEmpty).isEmpty
+          ? '/'
+          : '/${path.split('/').where((s) => s.isNotEmpty).first}';
   final feature = _routeToFeature[base];
   if (feature != null && !AppConfig.instance.isFeatureEnabled(feature)) {
     return '/home';
@@ -55,12 +58,22 @@ final GoRouter appRouter = GoRouter(
   initialLocation: '/home',
   debugLogDiagnostics: true,
   redirect: _redirectByFeature,
+  errorBuilder: (context, state) {
+    // Log the error for debugging
+    debugPrint('GoRouter error: ${state.error}');
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: Center(
+        child: Text(
+          'Ha ocurrido un error. Por favor, inténtelo nuevamente.',
+          style: TextStyle(color: Colors.white),
+          textAlign: TextAlign.center,
+        ),
+      ),
+    );
+  },
   routes: <RouteBase>[
-    GoRoute(
-      path: '/',
-      name: 'root',
-      redirect: (_, __) => '/home',
-    ),
+    GoRoute(path: '/', name: 'root', redirect: (_, __) => '/home'),
     GoRoute(
       path: '/home',
       name: 'home',
@@ -108,10 +121,7 @@ final GoRouter appRouter = GoRouter(
             final orderId = state.pathParameters['id'];
             final extra = state.extra;
             final pedido = extra is Pedido ? extra : null;
-            return _EditOrderRouteWrapper(
-              orderId: orderId,
-              pedido: pedido,
-            );
+            return _EditOrderRouteWrapper(orderId: orderId, pedido: pedido);
           },
         ),
       ],
@@ -180,7 +190,13 @@ class _EditOrderRouteWrapperState extends State<_EditOrderRouteWrapper> {
     if (widget.pedido != null) return widget.pedido;
     final id = int.tryParse(widget.orderId ?? '');
     if (id == null) return null;
-    return PedidoService.obtenerPorId(id);
+    try {
+      return await PedidoService.obtenerPorId(id);
+    } catch (e, stackTrace) {
+      debugPrint('Error loading pedido: $e');
+      debugPrintStack(stackTrace: stackTrace);
+      rethrow; // Let the errorBuilder handle it
+    }
   }
 
   @override
@@ -205,7 +221,10 @@ class _EditOrderRouteWrapperState extends State<_EditOrderRouteWrapper> {
             backgroundColor: AppColors.background,
             appBar: AppBar(
               backgroundColor: AppColors.primary,
-              title: const Text('Pedido no encontrado', style: TextStyle(color: Colors.white)),
+              title: const Text(
+                'Pedido no encontrado',
+                style: TextStyle(color: Colors.white),
+              ),
             ),
             body: Center(
               child: Text(
@@ -229,10 +248,24 @@ class _EditProductRouteWrapper extends StatefulWidget {
   const _EditProductRouteWrapper({this.productId, this.product});
 
   @override
-  State<_EditProductRouteWrapper> createState() => _EditProductRouteWrapperState();
+  State<_EditProductRouteWrapper> createState() =>
+      _EditProductRouteWrapperState();
 }
 
 class _EditProductRouteWrapperState extends State<_EditProductRouteWrapper> {
+  Future<Producto?> _loadProducto() async {
+    if (widget.product != null) return widget.product;
+    final id = int.tryParse(widget.productId ?? '');
+    if (id == null) return null;
+    try {
+      return await ProductoService.obtenerPorId(id);
+    } catch (e, stackTrace) {
+      debugPrint('Error loading producto: $e');
+      debugPrintStack(stackTrace: stackTrace);
+      rethrow; // Let the errorBuilder handle it
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     if (widget.product != null) {
@@ -243,13 +276,26 @@ class _EditProductRouteWrapperState extends State<_EditProductRouteWrapper> {
       return const AddProductScreen();
     }
     return FutureBuilder<Producto?>(
-      future: ProductoService.obtenerPorId(id),
+      future: _loadProducto(),
       builder: (context, snapshot) {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return Scaffold(
             backgroundColor: AppColors.background,
             body: Center(
               child: CircularProgressIndicator(color: AppColors.accent),
+            ),
+          );
+        }
+        if (snapshot.hasError) {
+          debugPrint('Product load error: ${snapshot.error}');
+          return Scaffold(
+            backgroundColor: AppColors.background,
+            body: Center(
+              child: Text(
+                'Error al cargar el producto. Por favor, inténtelo nuevamente.',
+                style: TextStyle(color: Colors.white),
+                textAlign: TextAlign.center,
+              ),
             ),
           );
         }

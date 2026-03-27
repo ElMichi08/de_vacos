@@ -1208,8 +1208,7 @@ class _OrderFormWidgetState extends State<OrderFormWidget> {
                   Row(
                     children: [
                       Expanded(
-                        // ignore: deprecated_member_use
-                        // TODO: Migrar a RadioGroup cuando la nueva API esté disponible en Flutter estable
+                        // ignore: deprecated_member_use - TODO: Migrar a RadioGroup cuando Flutter lo soporte
                         child: RadioListTile<String>(
                           title: const Text(
                             'Efectivo',
@@ -1229,8 +1228,7 @@ class _OrderFormWidgetState extends State<OrderFormWidget> {
                         ),
                       ),
                       Expanded(
-                        // ignore: deprecated_member_use
-                        // TODO: Migrar a RadioGroup cuando la nueva API esté disponible en Flutter estable
+                        // ignore: deprecated_member_use - TODO: Migrar a RadioGroup cuando Flutter lo soporte
                         child: RadioListTile<String>(
                           title: const Text(
                             'Transferencia',

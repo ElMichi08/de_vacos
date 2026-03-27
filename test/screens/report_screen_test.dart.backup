@@ -1,0 +1,27 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:de_vacos/screens/report_screen.dart';
+
+void main() {
+  group('ReportScreen Widget Tests', () {
+    testWidgets('renders title correctly', (WidgetTester tester) async {
+      await tester.pumpWidget(const MaterialApp(home: ReportScreen()));
+      await tester.pumpAndSettle();
+      expect(find.text('Reportes'), findsOneWidget);
+    });
+
+    testWidgets('shows loading indicator initially', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(const MaterialApp(home: ReportScreen()));
+      await tester.pump();
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    });
+
+    testWidgets('has date filter widgets', (WidgetTester tester) async {
+      await tester.pumpWidget(const MaterialApp(home: ReportScreen()));
+      await tester.pumpAndSettle();
+      expect(find.byType(ListView), findsWidgets);
+    });
+  });
+}

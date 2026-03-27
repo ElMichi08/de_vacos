@@ -4,6 +4,7 @@ import 'package:path/path.dart' as path_utils;
 import 'package:de_vacos/core/database/db_helper.dart';
 import 'package:de_vacos/models/pedido.dart';
 import 'package:de_vacos/services/pedido_service.dart';
+import 'dart:developer' show log;
 
 /// Helper para crear un pedido rápido
 Pedido _pedidoRapido({double total = 10.0, String estadoPago = 'Pendiente'}) {
@@ -93,12 +94,9 @@ void main() {
       final nuevo = await PedidoService.obtenerPorId(nuevoId);
       final tercero = await PedidoService.obtenerPorId(ids[2]);
 
-      // ignore: avoid_print
-      print('Pedido original #3: numeroOrden=${tercero!.numeroOrden}');
-      // ignore: avoid_print
-      print('Pedido nuevo: numeroOrden=${nuevo!.numeroOrden}');
-      // ignore: avoid_print
-      print('¿Duplicado? ${tercero.numeroOrden == nuevo.numeroOrden}');
+      log('Pedido original #3: numeroOrden=${tercero!.numeroOrden}');
+      log('Pedido nuevo: numeroOrden=${nuevo!.numeroOrden}');
+      log('¿Duplicado? ${tercero.numeroOrden == nuevo.numeroOrden}');
     });
   });
 

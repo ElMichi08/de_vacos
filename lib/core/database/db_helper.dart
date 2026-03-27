@@ -32,17 +32,72 @@ class DBHelper {
     }
   }
 
+  /// Verifica si una columna existe en una tabla usando PRAGMA table_info
+  static Future<bool> columnExists(
+    Database db,
+    String tableName,
+    String columnName,
+  ) async {
+    final tableInfo = await db.rawQuery('PRAGMA table_info($tableName)');
+    final columnNames = tableInfo.map((row) => row['name'] as String).toList();
+    return columnNames.contains(columnName);
+  }
+
+  /// Agrega una columna a una tabla si no existe, con opciones para valor por defecto y actualización
+  static Future<void> addColumnIfNotExists(
+    Database db,
+    String tableName,
+    String columnName,
+    String columnDefinition, {
+    String? defaultValue,
+    String? updateSql,
+  }) async {
+    if (!await columnExists(db, tableName, columnName)) {
+      // Si hay defaultValue, incluirlo en la definición
+      String finalDefinition = columnDefinition;
+      if (defaultValue != null &&
+          !columnDefinition.toUpperCase().contains('DEFAULT')) {
+        finalDefinition = '$columnDefinition DEFAULT $defaultValue';
+      }
+      await db.execute(
+        'ALTER TABLE $tableName ADD COLUMN $columnName $finalDefinition',
+      );
+      if (updateSql != null) {
+        await db.execute(updateSql);
+      }
+    }
+  }
+
+  /// Asegura que una tabla tenga todas las columnas necesarias
+  static Future<void> _ensureTableColumns(
+    Database db,
+    String tableName,
+    List<Map<String, String>>
+    columns, // [{name: 'columnName', type: 'INTEGER', default: '0', update: 'SQL'}]
+  ) async {
+    for (final column in columns) {
+      await addColumnIfNotExists(
+        db,
+        tableName,
+        column['name']!,
+        column['type']!,
+        defaultValue: column['default'],
+        updateSql: column['update'],
+      );
+    }
+  }
+
   /// Inicializa el databaseFactory para plataformas de escritorio
   static Future<void> initialize() async {
     if (_initialized) return;
-    
+
     // Verificar si estamos en una plataforma de escritorio
     if (Platform.isWindows || Platform.isLinux || Platform.isMacOS) {
       // Inicializar sqflite_common_ffi para escritorio
       sqfliteFfiInit();
       databaseFactory = databaseFactoryFfi;
     }
-    
+
     _initialized = true;
   }
 
@@ -70,55 +125,58 @@ class DBHelper {
       onOpen: (db) async {
         // Verificar y agregar columnas faltantes al abrir la base de datos
         try {
-          // Verificar columnas de pedidos
-          final pedidosTableInfo = await db.rawQuery('PRAGMA table_info(pedidos)');
-          final pedidosColumnNames = pedidosTableInfo.map((row) => row['name'] as String).toList();
-          
-          if (!pedidosColumnNames.contains('numeroOrden')) {
-            await db.execute('ALTER TABLE pedidos ADD COLUMN numeroOrden INTEGER DEFAULT 0');
-            await db.execute('UPDATE pedidos SET numeroOrden = id WHERE numeroOrden = 0 OR numeroOrden IS NULL');
-          }
-          if (!pedidosColumnNames.contains('estadoPago')) {
-            await db.execute('ALTER TABLE pedidos ADD COLUMN estadoPago TEXT DEFAULT \'Pendiente\'');
-            await db.execute('UPDATE pedidos SET estadoPago = \'Pendiente\' WHERE estadoPago IS NULL');
-          }
-          if (!pedidosColumnNames.contains('cancelado')) {
-            await db.execute('ALTER TABLE pedidos ADD COLUMN cancelado INTEGER DEFAULT 0');
-            await db.execute('UPDATE pedidos SET cancelado = 0 WHERE cancelado IS NULL');
-          }
-          if (!pedidosColumnNames.contains('fotoTransferenciaPath')) {
-            await db.execute('ALTER TABLE pedidos ADD COLUMN fotoTransferenciaPath TEXT DEFAULT NULL');
-          }
+          await _ensureTableColumns(db, 'pedidos', [
+            {
+              'name': 'numeroOrden',
+              'type': 'INTEGER',
+              'default': '0',
+              'update':
+                  'UPDATE pedidos SET numeroOrden = id WHERE numeroOrden = 0 OR numeroOrden IS NULL',
+            },
+            {
+              'name': 'estadoPago',
+              'type': 'TEXT',
+              'default': "'Pendiente'",
+              'update':
+                  "UPDATE pedidos SET estadoPago = 'Pendiente' WHERE estadoPago IS NULL",
+            },
+            {
+              'name': 'cancelado',
+              'type': 'INTEGER',
+              'default': '0',
+              'update':
+                  'UPDATE pedidos SET cancelado = 0 WHERE cancelado IS NULL',
+            },
+            {
+              'name': 'fotoTransferenciaPath',
+              'type': 'TEXT',
+              'default': 'NULL',
+            },
+          ]);
 
-          // Verificar columnas de productos (variantes y acompañantes)
-          final productosTableInfo = await db.rawQuery('PRAGMA table_info(productos)');
-          final productosColumnNames = productosTableInfo.map((row) => row['name'] as String).toList();
-          
-          if (!productosColumnNames.contains('variantes')) {
-            await db.execute('ALTER TABLE productos ADD COLUMN variantes TEXT DEFAULT NULL');
-          }
-          if (!productosColumnNames.contains('acompanantes')) {
-            await db.execute('ALTER TABLE productos ADD COLUMN acompanantes TEXT DEFAULT NULL');
-          }
-          if (!productosColumnNames.contains('extras')) {
-            await db.execute('ALTER TABLE productos ADD COLUMN extras TEXT DEFAULT NULL');
-          }
-          if (!productosColumnNames.contains('cancelado')) {
-            await db.execute('ALTER TABLE productos ADD COLUMN cancelado INTEGER DEFAULT 0');
-            await db.execute('UPDATE productos SET cancelado = 0 WHERE cancelado IS NULL');
-          }
+          await _ensureTableColumns(db, 'productos', [
+            {'name': 'variantes', 'type': 'TEXT', 'default': 'NULL'},
+            {'name': 'acompanantes', 'type': 'TEXT', 'default': 'NULL'},
+            {'name': 'extras', 'type': 'TEXT', 'default': 'NULL'},
+            {
+              'name': 'cancelado',
+              'type': 'INTEGER',
+              'default': '0',
+              'update':
+                  'UPDATE productos SET cancelado = 0 WHERE cancelado IS NULL',
+            },
+          ]);
 
-          // Verificar columnas de caja_movimientos
           try {
-            final cajaTableInfo = await db.rawQuery('PRAGMA table_info(caja_movimientos)');
-            final cajaColumnNames = cajaTableInfo.map((row) => row['name'] as String).toList();
-            
-            if (!cajaColumnNames.contains('isSystemGenerated')) {
-              debugPrint('Agregando columna isSystemGenerated a caja_movimientos...');
-              await db.execute('ALTER TABLE caja_movimientos ADD COLUMN isSystemGenerated INTEGER DEFAULT 0');
-              await db.execute('UPDATE caja_movimientos SET isSystemGenerated = 0 WHERE isSystemGenerated IS NULL');
-              debugPrint('Columna isSystemGenerated agregada exitosamente');
-            }
+            await _ensureTableColumns(db, 'caja_movimientos', [
+              {
+                'name': 'isSystemGenerated',
+                'type': 'INTEGER',
+                'default': '0',
+                'update':
+                    'UPDATE caja_movimientos SET isSystemGenerated = 0 WHERE isSystemGenerated IS NULL',
+              },
+            ]);
           } catch (e) {
             debugPrint('Error al verificar columnas de caja_movimientos: $e');
             // Si la tabla no existe, no es un error crítico
@@ -203,7 +261,11 @@ class DBHelper {
     ''');
   }
 
-  static Future<void> _onUpgrade(Database db, int oldVersion, int newVersion) async {
+  static Future<void> _onUpgrade(
+    Database db,
+    int oldVersion,
+    int newVersion,
+  ) async {
     // Migración a versión 6: tablas insumos y receta_detalle
     if (oldVersion < 6) {
       await db.execute('''
@@ -231,12 +293,9 @@ class DBHelper {
     // Migración a versión 5: agregar campo fotoTransferenciaPath a pedidos
     if (oldVersion < 5) {
       try {
-        final tableInfo = await db.rawQuery('PRAGMA table_info(pedidos)');
-        final columnNames = tableInfo.map((row) => row['name'] as String).toList();
-        
-        if (!columnNames.contains('fotoTransferenciaPath')) {
-          await db.execute('ALTER TABLE pedidos ADD COLUMN fotoTransferenciaPath TEXT DEFAULT NULL');
-        }
+        await _ensureTableColumns(db, 'pedidos', [
+          {'name': 'fotoTransferenciaPath', 'type': 'TEXT', 'default': 'NULL'},
+        ]);
       } catch (e) {
         debugPrint('Error al migrar pedidos a versión 5: $e');
       }
@@ -244,13 +303,15 @@ class DBHelper {
     // Migración a versión 4: agregar campo cancelado a productos
     if (oldVersion < 4) {
       try {
-        final tableInfo = await db.rawQuery('PRAGMA table_info(productos)');
-        final columnNames = tableInfo.map((row) => row['name'] as String).toList();
-        
-        if (!columnNames.contains('cancelado')) {
-          await db.execute('ALTER TABLE productos ADD COLUMN cancelado INTEGER DEFAULT 0');
-          await db.execute('UPDATE productos SET cancelado = 0 WHERE cancelado IS NULL');
-        }
+        await _ensureTableColumns(db, 'productos', [
+          {
+            'name': 'cancelado',
+            'type': 'INTEGER',
+            'default': '0',
+            'update':
+                'UPDATE productos SET cancelado = 0 WHERE cancelado IS NULL',
+          },
+        ]);
       } catch (e) {
         debugPrint('Error al migrar productos a versión 4: $e');
       }
@@ -258,48 +319,47 @@ class DBHelper {
     // Migración a versión 3: agregar campos para variantes y acompañantes
     if (oldVersion < 3) {
       try {
-        // Verificar si las columnas ya existen antes de agregarlas
-        final tableInfo = await db.rawQuery('PRAGMA table_info(productos)');
-        final columnNames = tableInfo.map((row) => row['name'] as String).toList();
-        
-        if (!columnNames.contains('variantes')) {
-          await db.execute('ALTER TABLE productos ADD COLUMN variantes TEXT DEFAULT NULL');
-        }
-        if (!columnNames.contains('acompanantes')) {
-          await db.execute('ALTER TABLE productos ADD COLUMN acompanantes TEXT DEFAULT NULL');
-        }
-        if (!columnNames.contains('extras')) {
-          await db.execute('ALTER TABLE productos ADD COLUMN extras TEXT DEFAULT NULL');
-        }
+        await _ensureTableColumns(db, 'productos', [
+          {'name': 'variantes', 'type': 'TEXT', 'default': 'NULL'},
+          {'name': 'acompanantes', 'type': 'TEXT', 'default': 'NULL'},
+          {'name': 'extras', 'type': 'TEXT', 'default': 'NULL'},
+        ]);
       } catch (e) {
         debugPrint('Error al migrar productos a versión 3: $e');
       }
     }
     if (oldVersion < 2) {
       try {
-        // Verificar y agregar columnas solo si no existen
-        final tableInfo = await db.rawQuery('PRAGMA table_info(pedidos)');
-        final columnNames = tableInfo.map((row) => row['name'] as String).toList();
-        
-        if (!columnNames.contains('numeroOrden')) {
-          await db.execute('ALTER TABLE pedidos ADD COLUMN numeroOrden INTEGER DEFAULT 0');
-        }
-        if (!columnNames.contains('estadoPago')) {
-          await db.execute('ALTER TABLE pedidos ADD COLUMN estadoPago TEXT DEFAULT \'Pendiente\'');
-        }
-        if (!columnNames.contains('cancelado')) {
-          await db.execute('ALTER TABLE pedidos ADD COLUMN cancelado INTEGER DEFAULT 0');
-        }
-        
-        // Actualizar registros existentes
-        await db.execute('UPDATE pedidos SET numeroOrden = id WHERE numeroOrden = 0 OR numeroOrden IS NULL');
-        await db.execute('UPDATE pedidos SET estadoPago = \'Pendiente\' WHERE estadoPago IS NULL');
-        await db.execute('UPDATE pedidos SET cancelado = 0 WHERE cancelado IS NULL');
+        await _ensureTableColumns(db, 'pedidos', [
+          {
+            'name': 'numeroOrden',
+            'type': 'INTEGER',
+            'default': '0',
+            'update':
+                'UPDATE pedidos SET numeroOrden = id WHERE numeroOrden = 0 OR numeroOrden IS NULL',
+          },
+          {
+            'name': 'estadoPago',
+            'type': 'TEXT',
+            'default': "'Pendiente'",
+            'update':
+                "UPDATE pedidos SET estadoPago = 'Pendiente' WHERE estadoPago IS NULL",
+          },
+          {
+            'name': 'cancelado',
+            'type': 'INTEGER',
+            'default': '0',
+            'update':
+                'UPDATE pedidos SET cancelado = 0 WHERE cancelado IS NULL',
+          },
+        ]);
       } catch (e) {
         // Si falla, intentar recrear la tabla
         debugPrint('Error en migración, recreando tabla pedidos: $e');
         await db.execute('DROP TABLE IF EXISTS pedidos_backup');
-        await db.execute('CREATE TABLE pedidos_backup AS SELECT * FROM pedidos');
+        await db.execute(
+          'CREATE TABLE pedidos_backup AS SELECT * FROM pedidos',
+        );
         await db.execute('DROP TABLE pedidos');
         await _onCreate(db, newVersion);
         await db.execute('''
@@ -311,7 +371,7 @@ class DBHelper {
       }
     }
   }
-  
+
   /// Obtiene el siguiente número de orden (1-100, luego se reinicia)
   /// Usa el conteo de pedidos del día en lugar de MAX(numeroOrden) para evitar
   /// problemas cuando hay números duplicados después de pasar 100
@@ -321,17 +381,20 @@ class DBHelper {
       final hoy = DateTime.now();
       final inicioDia = DateTime(hoy.year, hoy.month, hoy.day);
       final finDia = DateTime(hoy.year, hoy.month, hoy.day, 23, 59, 59, 999);
-      
+
       // Obtener el máximo número de orden generado hoy
       // Usar MAX() garantiza que no se repitan números aunque haya pedidos anulados
-      final result = await dbClient.rawQuery('''
+      final result = await dbClient.rawQuery(
+        '''
         SELECT MAX(numeroOrden) as maxOrden
         FROM pedidos 
         WHERE fecha BETWEEN ? AND ?
-      ''', [inicioDia.toIso8601String(), finDia.toIso8601String()]);
-      
+      ''',
+        [inicioDia.toIso8601String(), finDia.toIso8601String()],
+      );
+
       final maxOrden = result.first['maxOrden'] as int? ?? 0;
-      
+
       // Calcular el siguiente número de orden
       return (maxOrden % 100) + 1;
     } catch (e) {
@@ -365,7 +428,7 @@ class DBHelper {
   ) async {
     try {
       final dbClient = await db;
-      
+
       // Normalizar fechas: inicio al inicio del día, fin al final del día
       final inicioNormalizado = DateTime(inicio.year, inicio.month, inicio.day);
       final finNormalizado = DateTime(
@@ -377,9 +440,10 @@ class DBHelper {
         59,
         999,
       );
-      
+
       // Consulta SQL para obtener cantidad y total de pedidos cobrados
-      final result = await dbClient.rawQuery('''
+      final result = await dbClient.rawQuery(
+        '''
         SELECT 
           COUNT(*) as cantidad,
           COALESCE(SUM(total), 0) as total
@@ -387,23 +451,19 @@ class DBHelper {
         WHERE cancelado = 0
           AND estadoPago = 'Cobrado'
           AND fecha BETWEEN ? AND ?
-      ''', [
-        inicioNormalizado.toIso8601String(),
-        finNormalizado.toIso8601String(),
-      ]);
-      
+      ''',
+        [inicioNormalizado.toIso8601String(), finNormalizado.toIso8601String()],
+      );
+
       if (result.isEmpty) {
         return {'cantidad': 0, 'total': 0.0};
       }
-      
+
       final row = result.first;
       final cantidad = row['cantidad'] as int? ?? 0;
       final total = (row['total'] as num?)?.toDouble() ?? 0.0;
-      
-      return {
-        'cantidad': cantidad,
-        'total': total,
-      };
+
+      return {'cantidad': cantidad, 'total': total};
     } catch (e) {
       debugPrint('Error al obtener auditoría semanal: $e');
       throw Exception('Error al obtener auditoría semanal: $e');
@@ -414,18 +474,21 @@ class DBHelper {
   /// Retorna lista de mapas con 'nombre', 'cantidad', 'monto' (máximo [limit] elementos).
   static Future<List<Map<String, dynamic>>> obtenerTopProductosPorVentas(
     DateTime inicio,
-    DateTime fin,
-    {int limit = 3}
-  ) async {
+    DateTime fin, {
+    int limit = 3,
+  }) async {
     try {
       final dbClient = await db;
       final inicioNorm = DateTime(inicio.year, inicio.month, inicio.day);
       final finNorm = DateTime(fin.year, fin.month, fin.day, 23, 59, 59, 999);
-      final result = await dbClient.rawQuery('''
+      final result = await dbClient.rawQuery(
+        '''
         SELECT productos FROM pedidos
         WHERE cancelado = 0 AND estadoPago = 'Cobrado'
           AND fecha BETWEEN ? AND ?
-      ''', [inicioNorm.toIso8601String(), finNorm.toIso8601String()]);
+      ''',
+        [inicioNorm.toIso8601String(), finNorm.toIso8601String()],
+      );
       final Map<String, Map<String, dynamic>> agregado = {};
       for (final row in result) {
         final productosJson = row['productos'] as String?;
@@ -435,21 +498,35 @@ class DBHelper {
           if (lista is! List) continue;
           for (final p in lista) {
             if (p is! Map<String, dynamic>) continue;
-            final nombre = (p['nombre'] as String?) ?? (p['nombreProducto'] as String?) ?? 'Producto';
+            final nombre =
+                (p['nombre'] as String?) ??
+                (p['nombreProducto'] as String?) ??
+                'Producto';
             final cantidad = (p['cantidad'] as int?) ?? 1;
             final precio = (p['precio'] as num?)?.toDouble() ?? 0.0;
             final monto = precio * cantidad;
             if (!agregado.containsKey(nombre)) {
-              agregado[nombre] = {'nombre': nombre, 'cantidad': 0, 'monto': 0.0};
+              agregado[nombre] = {
+                'nombre': nombre,
+                'cantidad': 0,
+                'monto': 0.0,
+              };
             }
-            agregado[nombre]!['cantidad'] = (agregado[nombre]!['cantidad'] as int) + cantidad;
-            agregado[nombre]!['monto'] = (agregado[nombre]!['monto'] as double) + monto;
+            agregado[nombre]!['cantidad'] =
+                (agregado[nombre]!['cantidad'] as int) + cantidad;
+            agregado[nombre]!['monto'] =
+                (agregado[nombre]!['monto'] as double) + monto;
           }
         } catch (_) {}
       }
-      final ordenado = agregado.values.toList()
-        ..sort((a, b) => (b['cantidad'] as int).compareTo(a['cantidad'] as int));
-      return ordenado.take(limit).map((e) => Map<String, dynamic>.from(e)).toList();
+      final ordenado =
+          agregado.values.toList()..sort(
+            (a, b) => (b['cantidad'] as int).compareTo(a['cantidad'] as int),
+          );
+      return ordenado
+          .take(limit)
+          .map((e) => Map<String, dynamic>.from(e))
+          .toList();
     } catch (e) {
       debugPrint('Error al obtener top productos: $e');
       return [];
@@ -464,19 +541,19 @@ class DBHelper {
     }
     try {
       final dbClient = await db;
-      
+
       // Asegurar que la columna fotoTransferenciaPath existe antes de insertar
-      final tableInfo = await dbClient.rawQuery('PRAGMA table_info(pedidos)');
-      final columnNames = tableInfo.map((row) => row['name'] as String).toList();
-      
-      if (!columnNames.contains('fotoTransferenciaPath')) {
-        await dbClient.execute('ALTER TABLE pedidos ADD COLUMN fotoTransferenciaPath TEXT DEFAULT NULL');
-      }
-      
+      await addColumnIfNotExists(
+        dbClient,
+        'pedidos',
+        'fotoTransferenciaPath',
+        'TEXT',
+        defaultValue: 'NULL',
+      );
+
       return await dbClient.insert('pedidos', pedido.toMap());
     } catch (e) {
       throw Exception('Error al insertar pedido: $e');
     }
   }
 }
-

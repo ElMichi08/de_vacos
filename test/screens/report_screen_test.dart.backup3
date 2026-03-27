@@ -1,0 +1,71 @@
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:path/path.dart' as path_utils;
+import 'package:de_vacos/core/database/db_helper.dart';
+import 'package:de_vacos/screens/report_screen.dart';
+import 'package:de_vacos/models/pedido.dart';
+import 'package:de_vacos/services/pedido_service.dart';
+import 'package:de_vacos/widgets/date_filter_widget.dart';
+
+void main() {
+  late String testDbPath;
+
+  setUpAll(() async {
+    TestWidgetsFlutterBinding.ensureInitialized();
+    await DBHelper.initialize();
+  });
+
+  setUp(() async {
+    testDbPath = path_utils.join(
+      Directory.current.path,
+      'test_report_${DateTime.now().millisecondsSinceEpoch}.db',
+    );
+    DBHelper.testDbPathOverride = testDbPath;
+    await DBHelper.db;
+    // Insertar un pedido cerrado y cobrado para que la pantalla tenga datos
+    final pedido = Pedido(
+      numeroOrden: 1,
+      cliente: 'Test Cliente',
+      celular: '099999999',
+      metodoPago: 'Efectivo',
+      estado: 'Cerrados',
+      estadoPago: 'Cobrado',
+      productos: [
+        {'nombre': 'Producto Test', 'cantidad': 1, 'precio': 10.0}
+      ],
+      fecha: DateTime.now(),
+      total: 10.0,
+    );
+    await PedidoService.guardar(pedido);
+  });
+
+  tearDown(() async {
+    await DBHelper.deleteTestDb();
+  });
+
+  group('ReportScreen Widget Tests', () {
+    testWidgets('renders title correctly', (WidgetTester tester) async {
+      await tester.pumpWidget(const MaterialApp(home: ReportScreen()));
+      await tester.pump();
+      expect(find.text('Reportes'), findsOneWidget);
+    });
+
+    testWidgets('shows loading indicator initially', (WidgetTester tester) async {
+      await tester.pumpWidget(const MaterialApp(home: ReportScreen()));
+      await tester.pump();
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    });
+
+    testWidgets('has date filter widgets', (WidgetTester tester) async {
+      await tester.pumpWidget(const MaterialApp(home: ReportScreen()));
+      // Esperar a que la carga termine (puede haber Future resolviéndose)
+      // Usamos pumpAndSettle con timeout de 5 segundos
+      await tester.pumpAndSettle(const Duration(seconds: 5));
+      // Debería haber un DateFilterWidget
+      expect(find.byType(DateFilterWidget), findsOneWidget);
+      // Opcionalmente verificar que no hay error
+      expect(find.text('Error:'), findsNothing);
+    });
+  });
+}

@@ -6,22 +6,22 @@ environment:
   sdk: ^3.7.2
 
 dependencies:
-  connectivity_plus: ^6.0.5                      # Verificación de conectividad a internet
+  connectivity_plus: ^7.0.0                      # Verificación de conectividad a internet
   cupertino_icons: ^1.0.8
   esc_pos_utils_plus: ^2.0.4                     # Construcción de tickets ESC/POS
-  fl_chart: ^0.68.0
+  fl_chart: ^1.2.0
   flutter:
     sdk: flutter
-  flutter_dotenv: ^5.1.0                         # Variables de entorno
+  flutter_dotenv: 6.0.0                         # Variables de entorno
   flutter_pos_printer_platform_image_3: ^1.0.0   # Impresión térmica moderna (Android/iOS/Windows)
   flutter_slidable: ^3.1.1
-  go_router: ^14.6.2                             # Navegación (usado en varias pantallas)
+  go_router: ^17.1.0                             # Navegación (usado en varias pantallas)
   image: ^4.1.3                                  # Procesamiento de imágenes
   image_picker: ^1.1.0                           # Selección de imágenes
-  intl: ^0.19.0                                  # Internacionalización y formatos
+  intl: 0.20.2                                  # Internacionalización y formatos
   path: ^1.9.1                                   # Manejo de rutas de archivos
   path_provider: ^2.1.5                          # Directorios del sistema
-  permission_handler: ^11.4.0                    # Permisos Bluetooth
+  permission_handler: 12.0.1                    # Permisos Bluetooth
   shared_preferences: ^2.3.3                     # Guardar preferencias (tamaño de papel)
   sqflite: ^2.3.2
   sqflite_common_ffi: ^2.3.6                    # Base de datos SQLite para escritorio

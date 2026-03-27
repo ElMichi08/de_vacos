@@ -1,0 +1,32 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:de_vacos/screens/cocina_screen.dart';
+import 'package:de_vacos/models/pedido.dart';
+import 'package:de_vacos/services/pedido_service.dart';
+import 'package:mocktail/mocktail.dart';
+
+class MockPedidoService extends Mock implements PedidoService {}
+
+void main() {
+  group('CocinaScreen Widget Tests', () {
+    testWidgets('renders title correctly', (WidgetTester tester) async {
+      await tester.pumpWidget(const MaterialApp(home: CocinaScreen()));
+      await tester.pumpAndSettle();
+      expect(find.text('Cocina (KDS)'), findsOneWidget);
+    });
+
+    testWidgets('shows loading indicator initially', (
+      WidgetTester tester,
+    ) async {
+      await tester.pumpWidget(const MaterialApp(home: CocinaScreen()));
+      await tester.pump();
+      expect(find.byType(CircularProgressIndicator), findsOneWidget);
+    });
+
+    testWidgets('has refresh capability', (WidgetTester tester) async {
+      await tester.pumpWidget(const MaterialApp(home: CocinaScreen()));
+      await tester.pumpAndSettle();
+      expect(find.byType(ListView), findsOneWidget);
+    });
+  });
+}

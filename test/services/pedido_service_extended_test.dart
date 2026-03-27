@@ -4,6 +4,7 @@ import 'package:path/path.dart' as path_utils;
 import 'package:de_vacos/core/database/db_helper.dart';
 import 'package:de_vacos/models/pedido.dart';
 import 'package:de_vacos/services/pedido_service.dart';
+import 'dart:developer' show log;
 
 /// Helper para crear un pedido de prueba rápido
 Pedido _pedidoFactory({
@@ -255,24 +256,18 @@ void main() {
       }
 
       // 4. Documentar los números de orden asignados
-      // ignore: avoid_print
-      print('=== CASO CRÍTICO: Números de orden ===');
-      // ignore: avoid_print
-      print('Originales (1-10): ${pedidosOriginales.map((p) => '${p.cliente}=#${p.numeroOrden}').join(', ')}');
-      // ignore: avoid_print
-      print('Cancelados: pedido 3 (orden #3) y pedido 7 (orden #7)');
-      // ignore: avoid_print
-      print('Nuevos órdenes asignados: $nuevosOrdenes');
+      log('=== CASO CRÍTICO: Números de orden ===');
+      log('Originales (1-10): ${pedidosOriginales.map((p) => '${p.cliente}=#${p.numeroOrden}').join(', ')}');
+      log('Cancelados: pedido 3 (orden #3) y pedido 7 (orden #7)');
+      log('Nuevos órdenes asignados: $nuevosOrdenes');
 
       // 5. Verificar unicidad entre pedidos activos
       final todosActivos = await PedidoService.obtenerTodos();
       final numerosActivos = todosActivos.map((p) => p.numeroOrden).toList();
       final numerosUnicos = numerosActivos.toSet();
 
-      // ignore: avoid_print
-      print('Todos los numeroOrden activos: $numerosActivos');
-      // ignore: avoid_print
-      print('¿Hay duplicados? ${numerosActivos.length != numerosUnicos.length}');
+      log('Todos los numeroOrden activos: $numerosActivos');
+      log('¿Hay duplicados? ${numerosActivos.length != numerosUnicos.length}');
 
       if (numerosActivos.length != numerosUnicos.length) {
         // Encontrar duplicados
@@ -282,8 +277,7 @@ void main() {
         }
         final duplicados =
             conteo.entries.where((e) => e.value > 1).map((e) => e.key);
-        // ignore: avoid_print
-        print('⚠️ DUPLICADOS ENCONTRADOS: $duplicados');
+        log('⚠️ DUPLICADOS ENCONTRADOS: $duplicados');
       }
 
       // Este test DOCUMENTA el comportamiento, no fuerza pass/fail sobre la duplicación.
@@ -315,8 +309,7 @@ void main() {
       }
 
       // 4. Verificar que reinician desde 1
-      // ignore: avoid_print
-      print('Secuencia post-eliminación: $nuevosOrdenes');
+      log('Secuencia post-eliminación: $nuevosOrdenes');
       expect(nuevosOrdenes, [1, 2, 3, 4, 5]);
     });
   });
