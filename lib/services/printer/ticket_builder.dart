@@ -15,7 +15,7 @@ class TicketBuilder {
   static const int paperWidthMm = 80;
 
   static const int logoMaxWidth80mm = 102;
-  
+
   static const int logoMaxWidth56mm = 62;
 
   // Cache de logos cargados para evitar cargar en cada impresión
@@ -26,7 +26,9 @@ class TicketBuilder {
   /// [paperSize] determina el tamaño máximo del logo
   /// Retorna la imagen decodificada lista para imprimir, o null si no se encuentra
   /// Implementa cache para mejorar rendimiento
-  static Future<img.Image?> _loadLogo({PaperSize paperSize = PaperSize.mm80}) async {
+  static Future<img.Image?> _loadLogo({
+    PaperSize paperSize = PaperSize.mm80,
+  }) async {
     // Verificar cache primero
     if (paperSize == PaperSize.mm58 && _cachedLogo56mm != null) {
       return _cachedLogo56mm;
@@ -41,7 +43,9 @@ class TicketBuilder {
       final logoAssetPath = AppConfig.instance.logoAssetPath;
       if (logoAssetPath != null && logoAssetPath.isNotEmpty) {
         try {
-          logoBytes = await rootBundle.load(logoAssetPath).then((data) => data.buffer.asUint8List());
+          logoBytes = await rootBundle
+              .load(logoAssetPath)
+              .then((data) => data.buffer.asUint8List());
         } catch (e) {
           debugPrint('No se pudo cargar logo de marca ($logoAssetPath): $e');
         }
@@ -50,10 +54,14 @@ class TicketBuilder {
       // Fallback: logo por defecto en raíz de assets
       if (logoBytes == null) {
         try {
-          logoBytes = await rootBundle.load('logo.jpg').then((data) => data.buffer.asUint8List());
+          logoBytes = await rootBundle
+              .load('logo.jpg')
+              .then((data) => data.buffer.asUint8List());
         } catch (_) {
           try {
-            logoBytes = await rootBundle.load('logo.png').then((data) => data.buffer.asUint8List());
+            logoBytes = await rootBundle
+                .load('logo.png')
+                .then((data) => data.buffer.asUint8List());
           } catch (e2) {
             debugPrint('No se pudo cargar logo desde assets: $e2');
             return null;
@@ -71,7 +79,8 @@ class TicketBuilder {
       }
 
       // Redimensionar el logo manteniendo la proporción según el tamaño de papel
-      final logoMaxWidth = paperSize == PaperSize.mm58 ? logoMaxWidth56mm : logoMaxWidth80mm;
+      final logoMaxWidth =
+          paperSize == PaperSize.mm58 ? logoMaxWidth56mm : logoMaxWidth80mm;
       final aspectRatio = originalImage.height / originalImage.width;
       int targetWidth = logoMaxWidth;
       int targetHeight = (targetWidth * aspectRatio).round();
@@ -136,7 +145,7 @@ class TicketBuilder {
     if (bytes.isEmpty) {
       throw ArgumentError('El ticket no puede estar vacío');
     }
-    
+
     for (var i = 0; i < bytes.length; i++) {
       final byte = bytes[i];
       if (byte < 0 || byte > 255) {
@@ -145,14 +154,17 @@ class TicketBuilder {
         );
       }
     }
-    
+
     // Validar que el ticket termine con comando de corte
     // Los comandos ESC/POS de corte suelen ser: 0x1D, 0x56, 0x00 o similar
-    final hasCutCommand = bytes.length >= 3 && 
-        bytes[bytes.length - 3] == 0x1D && 
+    final hasCutCommand =
+        bytes.length >= 3 &&
+        bytes[bytes.length - 3] == 0x1D &&
         bytes[bytes.length - 2] == 0x56;
     if (!hasCutCommand) {
-      debugPrint('ADVERTENCIA: El ticket podría no tener comando de corte válido');
+      debugPrint(
+        'ADVERTENCIA: El ticket podría no tener comando de corte válido',
+      );
     }
   }
 
@@ -162,11 +174,11 @@ class TicketBuilder {
   static Future<List<int>> buildStandardTestTicket() async {
     // Cargar perfil de capacidades (NO usar CapabilityProfile.empty())
     final profile = await CapabilityProfile.load();
-    
+
     // Crear generator con PaperSize.mm80 (estándar para JP80H)
     // El Generator se inicializa automáticamente al crearlo
     final generator = Generator(PaperSize.mm80, profile);
-    
+
     // Construir los bytes ESC/POS usando el Generator
     // El Generator maneja internamente la generación de comandos ESC/POS válidos
     List<int> bytes = [];
@@ -217,21 +229,18 @@ class TicketBuilder {
   }) async {
     // Cargar perfil de capacidades (NO usar CapabilityProfile.empty())
     final profile = await CapabilityProfile.load();
-    
+
     // Crear generator con el tamaño de papel especificado
     final generator = Generator(paperSize, profile);
-    
+
     List<int> bytes = [];
 
     // Título centrado - tamaño según papel
-    final titleSize = paperSize == PaperSize.mm58 ? PosTextSize.size1 : PosTextSize.size2;
+    final titleSize =
+        paperSize == PaperSize.mm58 ? PosTextSize.size1 : PosTextSize.size2;
     bytes += generator.text(
       TicketConstants.nombreRestaurante,
-      styles: PosStyles(
-        align: PosAlign.center,
-        bold: true,
-        height: titleSize,
-      ),
+      styles: PosStyles(align: PosAlign.center, bold: true, height: titleSize),
     );
     bytes += generator.feed(1);
 
@@ -240,7 +249,9 @@ class TicketBuilder {
 
     // Información del ticket (normalizado a ASCII)
     bytes += generator.text(
-      normalizeToAscii('Ticket de prueba - ${paperSize == PaperSize.mm58 ? "56mm" : "80mm"}'),
+      normalizeToAscii(
+        'Ticket de prueba - ${paperSize == PaperSize.mm58 ? "56mm" : "80mm"}',
+      ),
       styles: const PosStyles(align: PosAlign.center),
     );
 
@@ -274,47 +285,56 @@ class TicketBuilder {
   }) async {
     // Cargar perfil de capacidades (NO usar CapabilityProfile.empty())
     final profile = await CapabilityProfile.load();
-    
+
     // Crear generator con el tamaño de papel especificado
     final generator = Generator(paperSize, profile);
-    
+
     // Construir los bytes ESC/POS usando el Generator
     List<int> bytes = [];
 
-    // Logo (centrado) - más grande que el texto para jerarquía visual
+    // Determinar si es formato 56mm para ajustes específicos
+    final is56mm = paperSize == PaperSize.mm58;
+
+    // Alturas de fuente ajustadas según tamaño de papel
+    final titleHeight = is56mm ? PosTextSize.size1 : PosTextSize.size2;
+    final normalHeight = is56mm ? PosTextSize.size1 : PosTextSize.size2;
+    final smallHeight = is56mm ? PosTextSize.size1 : PosTextSize.size1;
+    final totalHeight = is56mm ? PosTextSize.size1 : PosTextSize.size2;
+
+    // Logo (centrado)
     final logo = await _loadLogo(paperSize: paperSize);
     if (logo != null) {
       bytes += generator.image(logo);
-      bytes += generator.feed(1); // Espacio después del logo
+      bytes += generator.feed(1);
     } else {
-      // Fallback a texto si el logo no se encuentra - fuente compacta
+      // Fallback a texto si el logo no se encuentra
       bytes += generator.text(
         TicketConstants.nombreRestaurante,
-        styles: const PosStyles(
+        styles: PosStyles(
           align: PosAlign.center,
           fontType: PosFontType.fontA,
           bold: true,
-          width: PosTextSize.size2,
-          height: PosTextSize.size2,
+          width: titleHeight,
+          height: titleHeight,
         ),
       );
       bytes += generator.feed(1);
     }
 
-    // Número de orden (centrado) - fuente pequeña para que el logo sea más prominente
+    // Número de orden (centrado)
     bytes += generator.text(
       'Orden #${pedido.numeroOrden}',
-      styles: const PosStyles(
+      styles: PosStyles(
         align: PosAlign.center,
         fontType: PosFontType.fontA,
         bold: true,
         width: PosTextSize.size2,
-        height: PosTextSize.size1,
+        height: is56mm ? PosTextSize.size1 : PosTextSize.size1,
       ),
     );
-    bytes += generator.hr(); // Línea separadora después del número de orden
+    bytes += generator.hr();
 
-    // Factura (ID único de la orden) - fuente compacta
+    // Factura (ID único de la orden)
     if (pedido.id != null) {
       final facturaId = pedido.id!.toString().padLeft(
         TicketConstants.facturaPadding,
@@ -322,60 +342,64 @@ class TicketBuilder {
       );
       bytes += generator.text(
         'Factura: $facturaId',
-        styles: const PosStyles(
+        styles: PosStyles(
           fontType: PosFontType.fontB,
           width: PosTextSize.size1,
-          height: PosTextSize.size2,
+          height: normalHeight,
           bold: false,
         ),
       );
     }
 
-    // Información del cliente - fuente compacta
+    // Información del cliente (truncado si es 56mm)
+    final clienteText = 'Cliente: ${normalizeToAscii(pedido.cliente)}';
     bytes += generator.text(
-      'Cliente: ${normalizeToAscii(pedido.cliente)}',
-      styles: const PosStyles(
+      TicketConstants.truncateToWidth(clienteText, is56mm),
+      styles: PosStyles(
         fontType: PosFontType.fontB,
         width: PosTextSize.size1,
-        height: PosTextSize.size2,
+        height: normalHeight,
         bold: false,
       ),
     );
 
-    // Fecha - fuente compacta
+    // Fecha
     final fechaStr = _formatDate(pedido.fecha);
     final horaStr = _formatTime(pedido.fecha);
     bytes += generator.text(
       'Fecha: $fechaStr $horaStr',
-      styles: const PosStyles(
+      styles: PosStyles(
         fontType: PosFontType.fontB,
         width: PosTextSize.size1,
-        height: PosTextSize.size2,
+        height: normalHeight,
         bold: false,
       ),
     );
 
-    // Pago (normalizado a ASCII) - fuente compacta
+    // Pago (normalizado a ASCII)
+    final pagoText = 'Pago: ${normalizeToAscii(pedido.metodoPago)}';
     bytes += generator.text(
-      'Pago: ${normalizeToAscii(pedido.metodoPago)}',
-      styles: const PosStyles(
+      TicketConstants.truncateToWidth(pagoText, is56mm),
+      styles: PosStyles(
         fontType: PosFontType.fontB,
         width: PosTextSize.size1,
-        height: PosTextSize.size2,
+        height: normalHeight,
         bold: false,
       ),
     );
-    bytes += generator.hr(); // Línea separadora antes de los productos
+    bytes += generator.hr();
 
     // Agrupar productos iguales antes de imprimir usando ProductGrouper
-    final productosAgrupados = ProductGrouper.agruparProductos(pedido.productos);
+    final productosAgrupados = ProductGrouper.agruparProductos(
+      pedido.productos,
+    );
 
     // Validar que el total del pedido coincida con la suma calculada
     final sumaProductos = ProductGrouper.calcularSumaTotal(productosAgrupados);
     final costoEnvases = pedido.envasesLlevar * TicketConstants.precioEnvase;
     final sumaCalculada = sumaProductos + costoEnvases;
     final diferencia = (pedido.total - sumaCalculada).abs();
-    
+
     if (diferencia > TicketConstants.toleranciaTotal) {
       debugPrint(
         'ADVERTENCIA: Total del pedido (${pedido.total}) no coincide con suma calculada ($sumaCalculada). '
@@ -389,87 +413,101 @@ class TicketBuilder {
       final nombreProducto = ProductoTicketHelper.getNombre(producto);
       final precio = ProductoTicketHelper.getPrecio(producto);
 
-      // Nombre del producto (solo el nombre base, sin variante ni acompañantes) - fuente compacta
+      // Nombre del producto - formateado según tamaño de papel
       bytes += generator.text(
-        normalizeToAscii(nombreProducto),
-        styles: const PosStyles(
+        TicketFormatter.formatearNombreProducto(nombreProducto, is56mm: is56mm),
+        styles: PosStyles(
           fontType: PosFontType.fontB,
           width: PosTextSize.size1,
-          height: PosTextSize.size2,
-          bold: true, // nombre del producto en negrita
+          height: normalHeight,
+          bold: true,
         ),
       );
 
-      // Detalle: Acompañantes y Extras - fuente compacta
-      final detalleStr = TicketFormatter.formatearDetalleProducto(producto);
+      // Detalle: Acompañantes y Extras (solo si hay detalles)
+      final detalleStr = TicketFormatter.formatearDetalleProducto(
+        producto,
+        is56mm: is56mm,
+      );
       if (detalleStr.isNotEmpty) {
         bytes += generator.text(
-          'Detalle: $detalleStr',
-          styles: const PosStyles(
+          'Det: $detalleStr',
+          styles: PosStyles(
             fontType: PosFontType.fontB,
             width: PosTextSize.size1,
-            height: PosTextSize.size2,
+            height: smallHeight,
             bold: false,
           ),
         );
       }
 
-      // Cant: X $XX.XX c/u (alineado a la derecha) - fuente compacta
-      final cantidadTexto = TicketFormatter.formatearCantidadYPrecio(cantidad, precio);
+      // Cantidad y precio (alineado a la derecha)
+      final cantidadTexto = TicketFormatter.formatearCantidadYPrecio(
+        cantidad,
+        precio,
+        is56mm: is56mm,
+      );
       bytes += generator.text(
         cantidadTexto,
-        styles: const PosStyles(
-          align: PosAlign.right,
+        styles: PosStyles(
+          align: is56mm ? PosAlign.left : PosAlign.right,
           fontType: PosFontType.fontB,
           width: PosTextSize.size1,
-          height: PosTextSize.size1,
+          height: smallHeight,
           bold: false,
         ),
       );
     }
 
-    bytes += generator.hr(); // Línea separadora después de los productos
-    // Envases (solo si tiene) - fuente compacta
+    bytes += generator.hr();
+
+    // Envases (solo si tiene)
     if (pedido.envasesLlevar > 0) {
       final textoEnvases = TicketFormatter.formatearEnvases(
         pedido.envasesLlevar,
         TicketConstants.precioEnvase,
+        is56mm: is56mm,
       );
       bytes += generator.text(
         textoEnvases,
-        styles: const PosStyles(
+        styles: PosStyles(
           fontType: PosFontType.fontB,
           width: PosTextSize.size1,
-          height: PosTextSize.size1,
+          height: smallHeight,
           bold: false,
         ),
       );
     }
 
-    // Notas del pedido (solo si tiene) - fuente compacta
+    // Notas del pedido (solo si tiene)
     if (pedido.notas.isNotEmpty) {
+      final notasText = 'Notas: ${normalizeToAscii(pedido.notas)}';
       bytes += generator.text(
-        'Notas: ${normalizeToAscii(pedido.notas)}',
-        styles: const PosStyles(
+        TicketConstants.truncateToWidth(notasText, is56mm),
+        styles: PosStyles(
           fontType: PosFontType.fontB,
           width: PosTextSize.size1,
-          height: PosTextSize.size1,
+          height: smallHeight,
           bold: false,
         ),
       );
     }
 
-    bytes += generator.hr(); // Línea separadora antes del total
-    // Total a pagar (alineado a la derecha) - fuente compacta con negrita
-    final totalTexto = TicketFormatter.formatearTotal(pedido.total);
+    bytes += generator.hr();
+
+    // Total a pagar (alineado a la derecha, negrita)
+    final totalTexto = TicketFormatter.formatearTotal(
+      pedido.total,
+      is56mm: is56mm,
+    );
     bytes += generator.text(
       totalTexto,
-      styles: const PosStyles(
+      styles: PosStyles(
         align: PosAlign.right,
         fontType: PosFontType.fontA,
         bold: true,
         width: PosTextSize.size1,
-        height: PosTextSize.size2,
+        height: totalHeight,
       ),
     );
 

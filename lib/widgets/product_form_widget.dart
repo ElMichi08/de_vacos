@@ -117,16 +117,6 @@ class _ProductFormWidgetState extends State<ProductFormWidget> {
       return;
     }
 
-    if (_imagenPath == null || _imagenPath!.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(
-          content: Text('Debes seleccionar una imagen'),
-          backgroundColor: AppColors.error,
-        ),
-      );
-      return;
-    }
-
     // Si hay variantes, usar lista de variantes, sino usar precio base
     final variantes = _variantes.isNotEmpty ? _variantes : null;
     final acompanantes = _acompanantes.isNotEmpty ? _acompanantes : null;
@@ -136,7 +126,7 @@ class _ProductFormWidgetState extends State<ProductFormWidget> {
       id: widget.producto?.id,
       nombre: _nombreController.text.trim(),
       precio: double.parse(_precioController.text.trim()),
-      imagenPath: _imagenPath!,
+      imagenPath: _imagenPath,
       variantes: variantes,
       acompanantes: acompanantes,
       extras: extras,

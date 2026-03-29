@@ -36,6 +36,9 @@
 !pubspec.lock
 !analysis_options.yaml
 
+# Variables de entorno con credenciales (NUNCA commitear)
+.env
+
 # Referencia de variables de entorno (sin credenciales)
 !env.example
 

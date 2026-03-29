@@ -1,6 +1,8 @@
 import 'package:de_vacos/injection/container.dart';
 import 'package:de_vacos/models/pedido.dart';
 import 'package:de_vacos/services/facturacion/facturacion_service.dart';
+import 'package:de_vacos/services/insumo_service.dart';
+import 'package:de_vacos/services/receta_service.dart';
 
 class PedidoService {
   static Future<List<Pedido>> obtenerTodos({
@@ -129,20 +131,42 @@ class PedidoService {
   }
 
   static Future<int> actualizarEstado(int id, String nuevoEstado) async {
+    // Validar que no se pueda cerrar un pedido sin cobrar
+    if (nuevoEstado == 'Cerrados') {
+      final pedido = await obtenerPorId(id);
+      if (pedido != null && pedido.estadoPago != 'Cobrado') {
+        throw Exception('No se puede cerrar un pedido sin cobrar');
+      }
+    }
     await di.pedidoRepository.actualizarEstado(id, nuevoEstado);
     return id;
   }
 
+  /// Actualiza el estado de pago de un pedido.
+  /// Si se cobra exitosamente, descuenta stock ANTES de actualizar el estado.
+  /// Esto asegura que si falla el descuento, el pedido NO queda como cobrado.
   static Future<int> actualizarEstadoPago(
     int id,
     String nuevoEstadoPago, {
     String? fotoTransferenciaPath,
   }) async {
+    // Si se está cobrando, descontar stock PRIMERO antes de actualizar estado
+    if (nuevoEstadoPago == 'Cobrado') {
+      final pedido = await obtenerPorId(id);
+      if (pedido != null) {
+        // Descuenta stock (lanza excepción si stock insuficiente)
+        await _descontarStockPedido(pedido);
+      }
+    }
+
+    // Solo si el descuento fue exitoso, actualizar el estado de pago
     final rows = await di.pedidoRepository.actualizarEstadoPago(
       id,
       nuevoEstadoPago,
       fotoTransferenciaPath: fotoTransferenciaPath,
     );
+
+    // Registrar venta en facturación (después de actualizar estado)
     if (rows > 0 && nuevoEstadoPago == 'Cobrado') {
       final pedido = await obtenerPorId(id);
       if (pedido != null) {
@@ -150,6 +174,39 @@ class PedidoService {
       }
     }
     return rows;
+  }
+
+  static Future<void> _descontarStockPedido(Pedido pedido) async {
+    // Parsear productos del pedido
+    final productos = pedido.productos;
+
+    for (final prod in productos) {
+      final productoIdRaw = prod['productoId'] ?? prod['id'];
+      if (productoIdRaw == null) continue;
+      final productoId =
+          productoIdRaw is int
+              ? productoIdRaw
+              : int.tryParse(productoIdRaw.toString());
+      if (productoId == null) continue;
+
+      final cantidadRaw = prod['cantidad'] ?? 1;
+      final cantidad =
+          cantidadRaw is int
+              ? cantidadRaw
+              : (cantidadRaw is double
+                  ? cantidadRaw.toInt()
+                  : int.tryParse(cantidadRaw.toString()) ?? 1);
+
+      // Obtener receta del producto
+      final recetas = await RecetaService.obtenerPorProducto(productoId);
+
+      if (recetas.isNotEmpty) {
+        await InsumoService.descontarStock(
+          recetas: recetas,
+          cantidadProducto: cantidad,
+        );
+      }
+    }
   }
 
   static Future<int> cancelar(int id) async {

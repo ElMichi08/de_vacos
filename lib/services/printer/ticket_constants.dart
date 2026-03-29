@@ -16,5 +16,28 @@ class TicketConstants {
 
   /// Tolerancia para comparación de totales (para evitar problemas de precisión de punto flotante)
   static const double toleranciaTotal = 0.01;
-}
 
+  /// Símbolo de moneda configurado
+  /// Algunas impresoras chinas interpretan '$' como '¥' debido a páginas de código diferentes
+  /// Este símbolo se usa en todos los tickets para consistencia
+  static const String currencySymbol = '\$';
+
+  /// Altura de fuente para títulos en 56mm (más compacto)
+  static const int titleHeight56mm = 1;
+
+  /// Altura de fuente para títulos en 80mm
+  static const int titleHeight80mm = 2;
+
+  /// Ancho máximo de caracteres por línea en 56mm
+  static const int maxCharsPerLine56mm = 32;
+
+  /// Ancho máximo de caracteres por línea en 80mm
+  static const int maxCharsPerLine80mm = 48;
+
+  /// Trunca texto al ancho máximo del papel
+  static String truncateToWidth(String text, bool is56mm) {
+    final maxWidth = is56mm ? maxCharsPerLine56mm : maxCharsPerLine80mm;
+    if (text.length <= maxWidth) return text;
+    return '${text.substring(0, maxWidth - 2)}..';
+  }
+}

@@ -37,7 +37,7 @@ void main() {
         estado: 'En preparación',
         estadoPago: 'Pendiente',
         productos: [
-          {'nombre': 'Producto Test', 'cantidad': 1, 'precio': 10.0}
+          {'nombre': 'Producto Test', 'cantidad': 1, 'precio': 10.0},
         ],
         fecha: ahora,
         total: 10.0,
@@ -57,6 +57,57 @@ void main() {
     test('listar pedidos del día devuelve lista', () async {
       final lista = await PedidoService.obtenerTodos();
       expect(lista, isA<List<Pedido>>());
+    });
+
+    test('cerrar pedido sin cobrar lanza error', () async {
+      final pedido = Pedido(
+        numeroOrden: 2,
+        cliente: 'Test Cliente 2',
+        celular: '099999998',
+        metodoPago: 'Efectivo',
+        estado: 'Despachada',
+        estadoPago: 'Pendiente',
+        productos: [
+          {'nombre': 'Producto Test', 'cantidad': 1, 'precio': 10.0},
+        ],
+        fecha: DateTime.now(),
+        total: 10.0,
+      );
+
+      final id = await PedidoService.guardar(pedido);
+      expect(id, greaterThan(0));
+
+      // Intentar cerrar sin cobrar debe lanzar excepción
+      expect(
+        () => PedidoService.actualizarEstado(id, 'Cerrados'),
+        throwsA(isA<Exception>()),
+      );
+    });
+
+    test('cerrar pedido cobrado funciona correctamente', () async {
+      final pedido = Pedido(
+        numeroOrden: 3,
+        cliente: 'Test Cliente 3',
+        celular: '099999997',
+        metodoPago: 'Efectivo',
+        estado: 'Despachada',
+        estadoPago: 'Cobrado',
+        productos: [
+          {'nombre': 'Producto Test', 'cantidad': 1, 'precio': 10.0},
+        ],
+        fecha: DateTime.now(),
+        total: 10.0,
+      );
+
+      final id = await PedidoService.guardar(pedido);
+      expect(id, greaterThan(0));
+
+      // Cerrar pedido cobrado debe funcionar
+      await PedidoService.actualizarEstado(id, 'Cerrados');
+
+      final lista = await PedidoService.obtenerTodos();
+      final encontrado = lista.firstWhere((p) => p.id == id);
+      expect(encontrado.estado, 'Cerrados');
     });
   });
 }

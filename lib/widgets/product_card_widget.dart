@@ -22,8 +22,11 @@ class ProductCardWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fileExists = File(producto.imagenPath).existsSync();
-    
+    final fileExists =
+        producto.imagenPath != null &&
+        producto.imagenPath!.isNotEmpty &&
+        File(producto.imagenPath!).existsSync();
+
     return InkWell(
       onTap: onTap,
       borderRadius: BorderRadius.circular(AppConstants.borderRadiusLarge),
@@ -56,19 +59,20 @@ class ProductCardWidget extends StatelessWidget {
                     borderRadius: const BorderRadius.vertical(
                       top: Radius.circular(AppConstants.borderRadiusLarge),
                     ),
-                    child: fileExists
-                        ? Image.file(
-                            File(producto.imagenPath),
-                            fit: BoxFit.cover,
-                            width: double.infinity,
-                          )
-                        : const Center(
-                            child: Icon(
-                              Icons.image_not_supported,
-                              color: Colors.white38,
-                              size: 48,
+                    child:
+                        fileExists
+                            ? Image.file(
+                              File(producto.imagenPath!),
+                              fit: BoxFit.cover,
+                              width: double.infinity,
+                            )
+                            : const Center(
+                              child: Icon(
+                                Icons.image_not_supported,
+                                color: Colors.white38,
+                                size: 48,
+                              ),
                             ),
-                          ),
                   ),
                   Positioned.fill(
                     child: Container(
@@ -117,7 +121,9 @@ class ProductCardWidget extends StatelessWidget {
                       ),
                     ),
                   ),
-                  if (cantidad > 0 && onIncrement != null && onDecrement != null)
+                  if (cantidad > 0 &&
+                      onIncrement != null &&
+                      onDecrement != null)
                     Padding(
                       padding: const EdgeInsets.only(top: 8),
                       child: Row(
@@ -153,4 +159,3 @@ class ProductCardWidget extends StatelessWidget {
     );
   }
 }
-

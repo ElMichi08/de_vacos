@@ -36,6 +36,7 @@ class _ReportScreenState extends State<ReportScreen> {
   }
 
   Future<void> _cargarPedidos() async {
+    if (!mounted) return;
     setState(() {
       isLoading = true;
       errorMessage = null;
@@ -46,11 +47,13 @@ class _ReportScreenState extends State<ReportScreen> {
         fechaInicio: _fechaInicio,
         fechaFin: _fechaFin,
       );
+      if (!mounted) return;
       setState(() {
         pedidos = lista;
         isLoading = false;
       });
     } catch (e) {
+      if (!mounted) return;
       setState(() {
         errorMessage = e.toString();
         isLoading = false;

@@ -16,11 +16,13 @@ El trigger "Michibot [tarea]" es solo una forma de iniciar, pero el pipeline apl
 
 App POS (Point of Sale) multiplataforma para "De Vacos Urban Grill", construida con **Flutter/Dart**.
 
-- **Local-first:** SQLite como base de datos principal (`db_helper.dart`, migraciones v6).
+- **Local-first:** SQLite como base de datos principal (`db_helper.dart`, migraciones v7).
 - **Cloud sync:** Supabase para licencias, reportes semanales y cobros.
 - **Panel web admin:** Vistas read-only en `/panel/*` para administradores.
 - **Impresión térmica:** Subsistema con transporte abstracto (USB/Bluetooth).
 - **Branding dinámico:** Configurable via `assets/config/branding.json`.
+- **Imagen opcional:** Los productos pueden crearse sin imagen (v7 migration).
+- **Validación de estados:** Pedidos no pueden cerrarse sin estar cobrados.
 
 Para detalles extendidos, ver **[README.md](README.md)**.
 

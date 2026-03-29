@@ -53,9 +53,7 @@ class _InsumosScreenState extends State<InsumosScreen> {
         onPressed: () async {
           final ok = await Navigator.push(
             context,
-            MaterialPageRoute(
-              builder: (context) => const InsumoFormScreen(),
-            ),
+            MaterialPageRoute(builder: (context) => const InsumoFormScreen()),
           );
           if (ok == true) _cargar();
         },
@@ -67,9 +65,7 @@ class _InsumosScreenState extends State<InsumosScreen> {
 
   Widget _buildBody() {
     if (_loading) {
-      return Center(
-        child: CircularProgressIndicator(color: AppColors.accent),
-      );
+      return Center(child: CircularProgressIndicator(color: AppColors.accent));
     }
     if (_error != null) {
       return Center(
@@ -86,7 +82,9 @@ class _InsumosScreenState extends State<InsumosScreen> {
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: _cargar,
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+              ),
               child: const Text('Reintentar'),
             ),
           ],
@@ -128,15 +126,40 @@ class _InsumosScreenState extends State<InsumosScreen> {
 
   Widget _buildInsumoCard(Insumo insumo) {
     final bajoMinimo = insumo.bajoMinimo;
+    // Calcular porcentaje de stock respecto al mínimo
+    double porcentaje;
+    if (insumo.cantidadMinima <= 0) {
+      porcentaje = insumo.cantidadActual > 0 ? 1.0 : 0.0;
+    } else {
+      porcentaje = insumo.cantidadActual / insumo.cantidadMinima;
+      if (porcentaje > 1.0) porcentaje = 1.0;
+    }
+
+    // Determinar color según nivel de stock
+    Color barraColor;
+    if (bajoMinimo) {
+      barraColor = AppColors.error;
+    } else if (porcentaje < 0.5) {
+      barraColor = AppColors.error;
+    } else if (porcentaje < 1.0) {
+      barraColor = AppColors.highlight;
+    } else {
+      barraColor = AppColors.success;
+    }
+
     return Card(
       elevation: AppConstants.cardElevation,
-      color: bajoMinimo ? AppColors.cardBackground.withValues(alpha: 0.9) : AppColors.cardBackground,
+      color:
+          bajoMinimo
+              ? AppColors.cardBackground.withValues(alpha: 0.9)
+              : AppColors.cardBackground,
       margin: const EdgeInsets.only(bottom: AppConstants.spacingMedium),
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(AppConstants.borderRadiusLarge),
-        side: bajoMinimo
-            ? const BorderSide(color: AppColors.error, width: 1.5)
-            : BorderSide.none,
+        side:
+            bajoMinimo
+                ? const BorderSide(color: AppColors.error, width: 1.5)
+                : BorderSide.none,
       ),
       child: ListTile(
         contentPadding: const EdgeInsets.symmetric(
@@ -144,7 +167,10 @@ class _InsumosScreenState extends State<InsumosScreen> {
           vertical: 8,
         ),
         leading: CircleAvatar(
-          backgroundColor: bajoMinimo ? AppColors.error.withValues(alpha: 0.3) : AppColors.accent.withValues(alpha: 0.3),
+          backgroundColor:
+              bajoMinimo
+                  ? AppColors.error.withValues(alpha: 0.3)
+                  : AppColors.accent.withValues(alpha: 0.3),
           child: Icon(
             bajoMinimo ? Icons.warning_amber_rounded : Icons.inventory_2,
             color: bajoMinimo ? AppColors.error : AppColors.accent,
@@ -169,6 +195,23 @@ class _InsumosScreenState extends State<InsumosScreen> {
                 fontSize: 14,
               ),
             ),
+            const SizedBox(height: 8),
+            LinearProgressIndicator(
+              value: porcentaje,
+              backgroundColor: Colors.white24,
+              valueColor: AlwaysStoppedAnimation<Color>(barraColor),
+              minHeight: 6,
+              borderRadius: BorderRadius.circular(3),
+            ),
+            const SizedBox(height: 4),
+            Text(
+              '${(porcentaje * 100).toStringAsFixed(0)}% del mínimo',
+              style: TextStyle(
+                color: barraColor,
+                fontSize: 12,
+                fontWeight: FontWeight.w500,
+              ),
+            ),
             if (bajoMinimo)
               const Padding(
                 padding: EdgeInsets.only(top: 4),
@@ -183,7 +226,11 @@ class _InsumosScreenState extends State<InsumosScreen> {
               ),
           ],
         ),
-        trailing: const Icon(Icons.arrow_forward_ios, color: Colors.white70, size: 16),
+        trailing: const Icon(
+          Icons.arrow_forward_ios,
+          color: Colors.white70,
+          size: 16,
+        ),
         onTap: () async {
           final ok = await Navigator.push(
             context,

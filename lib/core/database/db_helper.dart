@@ -9,7 +9,7 @@ import '../../models/pedido.dart';
 
 class DBHelper {
   static Database? _db;
-  static const int _versionDb = 6; // Insumos + receta_detalle
+  static const int _versionDb = 7; // Imagen opcional en productos
   static bool _initialized = false;
 
   static String? _testDbPathOverride;
@@ -266,6 +266,32 @@ class DBHelper {
     int oldVersion,
     int newVersion,
   ) async {
+    // Migración a versión 7: imagen opcional en productos
+    if (oldVersion < 7) {
+      try {
+        // Recrear tabla productos con imagenPath nullable
+        await db.execute('ALTER TABLE productos RENAME TO productos_backup');
+        await db.execute('''
+          CREATE TABLE productos(
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            nombre TEXT NOT NULL,
+            precio REAL NOT NULL,
+            imagenPath TEXT DEFAULT NULL,
+            variantes TEXT DEFAULT NULL,
+            acompanantes TEXT DEFAULT NULL,
+            extras TEXT DEFAULT NULL,
+            cancelado INTEGER DEFAULT 0
+          )
+        ''');
+        await db.execute('''
+          INSERT INTO productos (id, nombre, precio, imagenPath, variantes, acompanantes, extras, cancelado)
+          SELECT id, nombre, precio, imagenPath, variantes, acompanantes, extras, cancelado FROM productos_backup
+        ''');
+        await db.execute('DROP TABLE productos_backup');
+      } catch (e) {
+        debugPrint('Error al migrar productos a versión 7: $e');
+      }
+    }
     // Migración a versión 6: tablas insumos y receta_detalle
     if (oldVersion < 6) {
       await db.execute('''

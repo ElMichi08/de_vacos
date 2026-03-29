@@ -14,7 +14,7 @@ class Producto {
   final String nombre;
   final double
   precio; // Precio base (se usa si no hay variantes, o como precio mínimo)
-  final String imagenPath;
+  final String? imagenPath;
   final bool cancelado; // Soft delete
 
   // Nuevos campos opcionales para productos complejos
@@ -29,7 +29,7 @@ class Producto {
     this.id,
     required this.nombre,
     required this.precio,
-    required this.imagenPath,
+    this.imagenPath,
     this.cancelado = false,
     this.variantes,
     this.acompanantes,
@@ -127,7 +127,7 @@ class Producto {
           map['precio'] is int
               ? (map['precio'] as int).toDouble()
               : map['precio'],
-      imagenPath: map['imagenPath'] ?? '',
+      imagenPath: map['imagenPath'],
       cancelado: (map['cancelado'] ?? 0) == 1,
       variantes: variantes,
       acompanantes: acompanantes,
@@ -143,9 +143,6 @@ class Producto {
     }
     if (precio.isNaN || precio <= 0) {
       return 'El precio debe ser un número positivo';
-    }
-    if (imagenPath.trim().isEmpty) {
-      return 'La imagen es obligatoria';
     }
 
     // Validar variantes si existen

@@ -120,6 +120,19 @@ class _OrderListScreenState extends State<OrderListScreen> {
         nuevoEstado = 'Despachada';
         break;
       case 'Despachada':
+        // Validar que el pedido esté cobrado antes de cerrar
+        if (pedido.estadoPago != 'Cobrado') {
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(
+                content: const Text('No se puede cerrar un pedido sin cobrar'),
+                backgroundColor: AppColors.error,
+                duration: const Duration(seconds: 2),
+              ),
+            );
+          }
+          return;
+        }
         nuevoEstado = 'Cerrados';
         break;
       default:
