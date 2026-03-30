@@ -1,43 +1,47 @@
 import 'package:de_vacos/models/pedido.dart';
 import 'package:de_vacos/repositories/i_pedido_repository.dart';
 import 'package:de_vacos/core/database/db_helper.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 class PedidoRepository implements IPedidoRepository {
   @override
   Future<Pedido> crearPedido(Pedido pedido) async {
-    final numeroOrden = await DBHelper.obtenerSiguienteNumeroOrden();
-    final pedidoConOrden = Pedido(
-      numeroOrden: numeroOrden,
-      cliente: pedido.cliente,
-      celular: pedido.celular,
-      metodoPago: pedido.metodoPago,
-      estado: 'En preparación',
-      estadoPago: pedido.estadoPago,
-      productos: pedido.productos,
-      fecha: pedido.fecha,
-      total: pedido.total,
-      envasesLlevar: pedido.envasesLlevar,
-      notas: pedido.notas,
-      cancelado: false,
-      fotoTransferenciaPath: pedido.fotoTransferenciaPath,
-    );
-    final id = await DBHelper.insertarPedido(pedidoConOrden);
-    return Pedido(
-      id: id,
-      numeroOrden: numeroOrden,
-      cliente: pedido.cliente,
-      celular: pedido.celular,
-      metodoPago: pedido.metodoPago,
-      estado: 'En preparación',
-      estadoPago: pedido.estadoPago,
-      productos: pedido.productos,
-      fecha: pedido.fecha,
-      total: pedido.total,
-      envasesLlevar: pedido.envasesLlevar,
-      notas: pedido.notas,
-      cancelado: false,
-      fotoTransferenciaPath: pedido.fotoTransferenciaPath,
-    );
+    final db = await DBHelper.db;
+    return await db.transaction((txn) async {
+      final numeroOrden = await DBHelper.obtenerSiguienteNumeroOrden(txn: txn);
+      final pedidoConOrden = Pedido(
+        numeroOrden: numeroOrden,
+        cliente: pedido.cliente,
+        celular: pedido.celular,
+        metodoPago: pedido.metodoPago,
+        estado: 'En preparación',
+        estadoPago: pedido.estadoPago,
+        productos: pedido.productos,
+        fecha: pedido.fecha,
+        total: pedido.total,
+        envasesLlevar: pedido.envasesLlevar,
+        notas: pedido.notas,
+        cancelado: false,
+        fotoTransferenciaPath: pedido.fotoTransferenciaPath,
+      );
+      final id = await DBHelper.insertarPedido(pedidoConOrden, txn: txn);
+      return Pedido(
+        id: id,
+        numeroOrden: numeroOrden,
+        cliente: pedido.cliente,
+        celular: pedido.celular,
+        metodoPago: pedido.metodoPago,
+        estado: 'En preparación',
+        estadoPago: pedido.estadoPago,
+        productos: pedido.productos,
+        fecha: pedido.fecha,
+        total: pedido.total,
+        envasesLlevar: pedido.envasesLlevar,
+        notas: pedido.notas,
+        cancelado: false,
+        fotoTransferenciaPath: pedido.fotoTransferenciaPath,
+      );
+    }, exclusive: true);
   }
 
   @override

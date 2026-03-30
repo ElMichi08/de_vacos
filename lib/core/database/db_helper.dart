@@ -34,7 +34,7 @@ class DBHelper {
 
   /// Verifica si una columna existe en una tabla usando PRAGMA table_info
   static Future<bool> columnExists(
-    Database db,
+    DatabaseExecutor db,
     String tableName,
     String columnName,
   ) async {
@@ -45,7 +45,7 @@ class DBHelper {
 
   /// Agrega una columna a una tabla si no existe, con opciones para valor por defecto y actualización
   static Future<void> addColumnIfNotExists(
-    Database db,
+    DatabaseExecutor db,
     String tableName,
     String columnName,
     String columnDefinition, {
@@ -399,33 +399,89 @@ class DBHelper {
   }
 
   /// Obtiene el siguiente número de orden (1-100, luego se reinicia)
-  /// Usa el conteo de pedidos del día en lugar de MAX(numeroOrden) para evitar
-  /// problemas cuando hay números duplicados después de pasar 100
-  static Future<int> obtenerSiguienteNumeroOrden() async {
-    try {
+  /// Considera solo pedidos activos (no cancelados) para el cálculo.
+  /// Los números de pedidos cancelados se consideran disponibles para reutilización.
+  /// Verifica unicidad para pedidos activos del mismo día.
+  /// Si se provee [txn], usa esa transacción; de lo contrario, abre una nueva.
+  static Future<int> obtenerSiguienteNumeroOrden({Transaction? txn}) async {
+    if (txn != null) {
+      // Ya estamos dentro de una transacción, usarla directamente
+      return await _calcularSiguienteNumeroOrden(txn);
+    } else {
+      // No hay transacción, iniciar una transacción exclusiva
       final dbClient = await db;
-      final hoy = DateTime.now();
-      final inicioDia = DateTime(hoy.year, hoy.month, hoy.day);
-      final finDia = DateTime(hoy.year, hoy.month, hoy.day, 23, 59, 59, 999);
+      return await dbClient.transaction((txn) async {
+        return await _calcularSiguienteNumeroOrden(txn);
+      }, exclusive: true);
+    }
+  }
 
-      // Obtener el máximo número de orden generado hoy
-      // Usar MAX() garantiza que no se repitan números aunque haya pedidos anulados
-      final result = await dbClient.rawQuery(
+  /// Lógica interna para calcular el siguiente número de orden dentro de un executor (transacción).
+  static Future<int> _calcularSiguienteNumeroOrden(
+    DatabaseExecutor executor,
+  ) async {
+    final hoy = DateTime.now();
+    final inicioDia = DateTime(hoy.year, hoy.month, hoy.day);
+    final finDia = DateTime(hoy.year, hoy.month, hoy.day, 23, 59, 59, 999);
+
+    // Obtener el máximo número de orden generado hoy para pedidos activos (no cancelados)
+    final result = await executor.rawQuery(
+      '''
+      SELECT MAX(numeroOrden) as maxOrden
+      FROM pedidos 
+      WHERE fecha BETWEEN ? AND ? AND cancelado = 0
+    ''',
+      [inicioDia.toIso8601String(), finDia.toIso8601String()],
+    );
+
+    final maxOrden = result.first['maxOrden'] as int? ?? 0;
+
+    // Calcular el siguiente número de orden
+    int siguiente = (maxOrden % 100) + 1;
+
+    // Verificar que el número no esté asignado a un pedido activo del mismo día
+    final resultDuplicado = await executor.rawQuery(
+      '''
+      SELECT COUNT(*) as count
+      FROM pedidos 
+      WHERE fecha BETWEEN ? AND ? 
+        AND cancelado = 0 
+        AND numeroOrden = ?
+    ''',
+      [inicioDia.toIso8601String(), finDia.toIso8601String(), siguiente],
+    );
+
+    final count = resultDuplicado.first['count'] as int? ?? 0;
+
+    // Si el número ya está en uso, buscar el siguiente disponible
+    if (count > 0) {
+      // Obtener todos los números de orden activos del día
+      final resultNumeros = await executor.rawQuery(
         '''
-        SELECT MAX(numeroOrden) as maxOrden
+        SELECT numeroOrden
         FROM pedidos 
-        WHERE fecha BETWEEN ? AND ?
+        WHERE fecha BETWEEN ? AND ? AND cancelado = 0
+        ORDER BY numeroOrden
       ''',
         [inicioDia.toIso8601String(), finDia.toIso8601String()],
       );
 
-      final maxOrden = result.first['maxOrden'] as int? ?? 0;
+      final Set<int> numerosActivos = {};
+      for (final row in resultNumeros) {
+        final num = row['numeroOrden'] as int;
+        numerosActivos.add(num);
+      }
 
-      // Calcular el siguiente número de orden
-      return (maxOrden % 100) + 1;
-    } catch (e) {
-      throw Exception('Error al obtener siguiente número de orden: $e');
+      // Buscar el siguiente número disponible en el rango 1-100
+      for (int i = 1; i <= 100; i++) {
+        if (!numerosActivos.contains(i)) {
+          siguiente = i;
+          break;
+        }
+      }
     }
+
+    return siguiente;
   }
 
   // Métodos helper para productos
@@ -560,24 +616,26 @@ class DBHelper {
   }
 
   // Métodos helper para pedidos
-  static Future<int> insertarPedido(Pedido pedido) async {
+  /// Inserta un pedido en la base de datos.
+  /// Si se provee [txn], usa esa transacción; de lo contrario, opera sin transacción explícita.
+  static Future<int> insertarPedido(Pedido pedido, {Transaction? txn}) async {
     final error = pedido.validar();
     if (error != null) {
       throw Exception('Error de validación: $error');
     }
     try {
-      final dbClient = await db;
+      final executor = txn ?? await db;
 
       // Asegurar que la columna fotoTransferenciaPath existe antes de insertar
       await addColumnIfNotExists(
-        dbClient,
+        executor,
         'pedidos',
         'fotoTransferenciaPath',
         'TEXT',
         defaultValue: 'NULL',
       );
 
-      return await dbClient.insert('pedidos', pedido.toMap());
+      return await executor.insert('pedidos', pedido.toMap());
     } catch (e) {
       throw Exception('Error al insertar pedido: $e');
     }
