@@ -9,15 +9,13 @@ import '../models/pedido.dart';
 class TransferPhotoViewerModal extends StatelessWidget {
   final Pedido pedido;
 
-  const TransferPhotoViewerModal({
-    super.key,
-    required this.pedido,
-  });
+  const TransferPhotoViewerModal({super.key, required this.pedido});
 
   @override
   Widget build(BuildContext context) {
-    final tieneFoto = pedido.fotoTransferenciaPath != null && 
-                     pedido.fotoTransferenciaPath!.isNotEmpty;
+    final tieneFoto =
+        pedido.fotoTransferenciaPath != null &&
+        pedido.fotoTransferenciaPath!.isNotEmpty;
 
     return Dialog(
       backgroundColor: Colors.transparent,
@@ -31,7 +29,9 @@ class TransferPhotoViewerModal extends StatelessWidget {
               margin: const EdgeInsets.all(AppConstants.paddingLarge),
               decoration: BoxDecoration(
                 color: AppColors.cardBackground,
-                borderRadius: BorderRadius.circular(AppConstants.borderRadiusLarge),
+                borderRadius: BorderRadius.circular(
+                  AppConstants.borderRadiusLarge,
+                ),
               ),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
@@ -42,8 +42,12 @@ class TransferPhotoViewerModal extends StatelessWidget {
                     decoration: BoxDecoration(
                       color: AppColors.primary.withValues(alpha: 0.2),
                       borderRadius: const BorderRadius.only(
-                        topLeft: Radius.circular(AppConstants.borderRadiusLarge),
-                        topRight: Radius.circular(AppConstants.borderRadiusLarge),
+                        topLeft: Radius.circular(
+                          AppConstants.borderRadiusLarge,
+                        ),
+                        topRight: Radius.circular(
+                          AppConstants.borderRadiusLarge,
+                        ),
                       ),
                     ),
                     child: Row(
@@ -93,10 +97,7 @@ class TransferPhotoViewerModal extends StatelessWidget {
                         ),
                         IconButton(
                           onPressed: () => Navigator.of(context).pop(),
-                          icon: const Icon(
-                            Icons.close,
-                            color: Colors.white70,
-                          ),
+                          icon: const Icon(Icons.close, color: Colors.white70),
                         ),
                       ],
                     ),
@@ -106,9 +107,10 @@ class TransferPhotoViewerModal extends StatelessWidget {
                   Expanded(
                     child: Padding(
                       padding: const EdgeInsets.all(AppConstants.paddingLarge),
-                      child: tieneFoto
-                          ? _buildPhotoView(pedido.fotoTransferenciaPath!)
-                          : _buildNoPhotoMessage(),
+                      child:
+                          tieneFoto
+                              ? _buildPhotoView(pedido.fotoTransferenciaPath!)
+                              : _buildNoPhotoMessage(),
                     ),
                   ),
                 ],
@@ -135,24 +137,19 @@ class TransferPhotoViewerModal extends StatelessWidget {
             return Container(
               decoration: BoxDecoration(
                 color: AppColors.background,
-                borderRadius: BorderRadius.circular(AppConstants.borderRadiusMedium),
+                borderRadius: BorderRadius.circular(
+                  AppConstants.borderRadiusMedium,
+                ),
               ),
               child: const Center(
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Icon(
-                      Icons.error_outline,
-                      color: AppColors.error,
-                      size: 64,
-                    ),
+                    Icon(Icons.error_outline, color: AppColors.error, size: 64),
                     SizedBox(height: 16),
                     Text(
                       'Error al cargar la foto',
-                      style: TextStyle(
-                        color: AppColors.error,
-                        fontSize: 18,
-                      ),
+                      style: TextStyle(color: AppColors.error, fontSize: 18),
                     ),
                   ],
                 ),
@@ -169,10 +166,7 @@ class TransferPhotoViewerModal extends StatelessWidget {
       decoration: BoxDecoration(
         color: AppColors.background,
         borderRadius: BorderRadius.circular(AppConstants.borderRadiusMedium),
-        border: Border.all(
-          color: Colors.orange,
-          width: 2,
-        ),
+        border: Border.all(color: Colors.orange, width: 2),
       ),
       child: Center(
         child: Padding(
@@ -194,7 +188,7 @@ class TransferPhotoViewerModal extends StatelessWidget {
               ),
               const SizedBox(height: 24),
               const Text(
-                'Pedido de versión anterior',
+                'No hay foto de transferencia disponible',
                 style: TextStyle(
                   color: Colors.white,
                   fontSize: 20,
@@ -204,17 +198,7 @@ class TransferPhotoViewerModal extends StatelessWidget {
               ),
               const SizedBox(height: 12),
               Text(
-                'Este pedido fue creado en una versión anterior de la aplicación que no incluía la funcionalidad de captura de fotos de transferencia.',
-                style: TextStyle(
-                  color: Colors.white70,
-                  fontSize: 14,
-                  height: 1.5,
-                ),
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 8),
-              Text(
-                'Por lo tanto, no se puede mostrar la foto de la transferencia.',
+                'Este pedido no tiene una foto de transferencia asociada.',
                 style: TextStyle(
                   color: Colors.white70,
                   fontSize: 14,
@@ -229,4 +213,3 @@ class TransferPhotoViewerModal extends StatelessWidget {
     );
   }
 }
-

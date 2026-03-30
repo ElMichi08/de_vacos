@@ -11,10 +11,7 @@ import '../widgets/order_form_widget.dart';
 class EditOrderScreen extends StatefulWidget {
   final Pedido pedido;
 
-  const EditOrderScreen({
-    super.key,
-    required this.pedido,
-  });
+  const EditOrderScreen({super.key, required this.pedido});
 
   @override
   State<EditOrderScreen> createState() => _EditOrderScreenState();
@@ -63,10 +60,7 @@ class _EditOrderScreenState extends State<EditOrderScreen> {
       if (error != null) {
         if (mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text(error),
-              backgroundColor: AppColors.error,
-            ),
+            SnackBar(content: Text(error), backgroundColor: AppColors.error),
           );
         }
         setState(() {
@@ -83,13 +77,15 @@ class _EditOrderScreenState extends State<EditOrderScreen> {
         celular: pedidoActualizado.celular,
         metodoPago: pedidoActualizado.metodoPago,
         estado: widget.pedido.estado, // Mantener el estado actual
-        estadoPago: widget.pedido.estadoPago, // Mantener el estado de pago actual
+        estadoPago:
+            widget.pedido.estadoPago, // Mantener el estado de pago actual
         productos: pedidoActualizado.productos,
         fecha: widget.pedido.fecha, // Mantener la fecha original
         total: pedidoActualizado.total,
         envasesLlevar: pedidoActualizado.envasesLlevar,
         notas: pedidoActualizado.notas,
         cancelado: widget.pedido.cancelado,
+        fotoTransferenciaPath: widget.pedido.fotoTransferenciaPath,
       );
 
       await PedidoService.actualizar(pedidoParaActualizar);
@@ -124,8 +120,8 @@ class _EditOrderScreenState extends State<EditOrderScreen> {
   @override
   Widget build(BuildContext context) {
     // Validar que el pedido no esté cerrado ni cancelado
-    if (widget.pedido.estado == 'Cerrados' || 
-        widget.pedido.estado == 'Cancelada' || 
+    if (widget.pedido.estado == 'Cerrados' ||
+        widget.pedido.estado == 'Cancelada' ||
         widget.pedido.cancelado) {
       // Si intenta editar un pedido cerrado o cancelado, mostrar error y volver
       WidgetsBinding.instance.addPostFrameCallback((_) {
@@ -137,52 +133,54 @@ class _EditOrderScreenState extends State<EditOrderScreen> {
         );
         context.pop();
       });
-      
+
       return Scaffold(
         backgroundColor: AppColors.background,
         appBar: const BackHeaderWidget(title: 'Editar Pedido'),
-        body: Center(
-          child: CircularProgressIndicator(color: AppColors.accent),
-        ),
+        body: Center(child: CircularProgressIndicator(color: AppColors.accent)),
       );
     }
-    
+
     return Scaffold(
       backgroundColor: AppColors.background,
       appBar: const BackHeaderWidget(title: 'Editar Pedido'),
-      body: _isLoading
-          ? Center(
-              child: CircularProgressIndicator(color: AppColors.accent),
-            )
-          : _isSaving
+      body:
+          _isLoading
               ? Center(
-                  child: CircularProgressIndicator(color: AppColors.accent),
-                )
+                child: CircularProgressIndicator(color: AppColors.accent),
+              )
+              : _isSaving
+              ? Center(
+                child: CircularProgressIndicator(color: AppColors.accent),
+              )
               : productos.isEmpty
-                  ? const Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(Icons.restaurant_menu, size: 64, color: Colors.white38),
-                          SizedBox(height: 16),
-                          Text(
-                            'No hay productos disponibles',
-                            style: TextStyle(color: Colors.white70, fontSize: 18),
-                          ),
-                          SizedBox(height: 8),
-                          Text(
-                            'Agrega productos primero',
-                            style: TextStyle(color: Colors.white54, fontSize: 14),
-                          ),
-                        ],
-                      ),
-                    )
-                  : OrderFormWidget(
-                      productos: productos,
-                      pedido: widget.pedido, // Pasar el pedido para edición
-                      onSave: _actualizarPedido,
+              ? const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(
+                      Icons.restaurant_menu,
+                      size: 64,
+                      color: Colors.white38,
                     ),
+                    SizedBox(height: 16),
+                    Text(
+                      'No hay productos disponibles',
+                      style: TextStyle(color: Colors.white70, fontSize: 18),
+                    ),
+                    SizedBox(height: 8),
+                    Text(
+                      'Agrega productos primero',
+                      style: TextStyle(color: Colors.white54, fontSize: 14),
+                    ),
+                  ],
+                ),
+              )
+              : OrderFormWidget(
+                productos: productos,
+                pedido: widget.pedido, // Pasar el pedido para edición
+                onSave: _actualizarPedido,
+              ),
     );
   }
 }
-
