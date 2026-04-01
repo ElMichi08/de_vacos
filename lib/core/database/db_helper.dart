@@ -39,7 +39,8 @@ class DBHelper {
     String columnName,
   ) async {
     final tableInfo = await db.rawQuery('PRAGMA table_info($tableName)');
-    final columnNames = tableInfo.map((row) => row['name'] as String).toList();
+    final columnNames =
+        tableInfo.map((row) => row['name']?.toString() ?? '').toList();
     return columnNames.contains(columnName);
   }
 
@@ -468,7 +469,7 @@ class DBHelper {
 
       final Set<int> numerosActivos = {};
       for (final row in resultNumeros) {
-        final num = row['numeroOrden'] as int;
+        final num = (row['numeroOrden'] as int?) ?? 0;
         numerosActivos.add(num);
       }
 
@@ -595,15 +596,17 @@ class DBHelper {
               };
             }
             agregado[nombre]!['cantidad'] =
-                (agregado[nombre]!['cantidad'] as int) + cantidad;
+                ((agregado[nombre]!['cantidad'] as int?) ?? 0) + cantidad;
             agregado[nombre]!['monto'] =
-                (agregado[nombre]!['monto'] as double) + monto;
+                ((agregado[nombre]!['monto'] as double?) ?? 0.0) + monto;
           }
         } catch (_) {}
       }
       final ordenado =
           agregado.values.toList()..sort(
-            (a, b) => (b['cantidad'] as int).compareTo(a['cantidad'] as int),
+            (a, b) => ((b['cantidad'] as int?) ?? 0).compareTo(
+              (a['cantidad'] as int?) ?? 0,
+            ),
           );
       return ordenado
           .take(limit)

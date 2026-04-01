@@ -3,13 +3,14 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as path_utils;
 import 'package:de_vacos/core/database/db_helper.dart';
 import 'package:de_vacos/models/pedido.dart';
+import 'package:de_vacos/models/enums.dart';
 import 'package:de_vacos/services/pedido_service.dart';
 import 'dart:developer' show log;
 
 /// Helper para crear un pedido de prueba rápido
 Pedido _pedidoFactory({
   String cliente = 'Test Cliente',
-  String metodoPago = 'Efectivo',
+  PaymentMethod metodoPago = PaymentMethod.efectivo,
   double total = 10.0,
   DateTime? fecha,
 }) {
@@ -18,10 +19,10 @@ Pedido _pedidoFactory({
     cliente: cliente,
     celular: '099999999',
     metodoPago: metodoPago,
-    estado: 'En preparación',
-    estadoPago: 'Pendiente',
+    estado: OrderStatus.enPreparacion,
+    estadoPago: PaymentStatus.pendiente,
     productos: [
-      {'nombre': 'Producto Test', 'cantidad': 1, 'precio': total}
+      {'nombre': 'Producto Test', 'cantidad': 1, 'precio': total},
     ],
     fecha: fecha ?? DateTime.now(),
     total: total,
@@ -63,7 +64,8 @@ void main() {
 
     test('obtenerPorId retorna el pedido correcto', () async {
       final id = await PedidoService.guardar(
-          _pedidoFactory(cliente: 'Específico'));
+        _pedidoFactory(cliente: 'Específico'),
+      );
       final pedido = await PedidoService.obtenerPorId(id);
 
       expect(pedido, isNotNull);
@@ -100,11 +102,11 @@ void main() {
 
     test('actualizarEstado cambia solo el estado', () async {
       final id = await PedidoService.guardar(_pedidoFactory());
-      await PedidoService.actualizarEstado(id, 'Listo');
+      await PedidoService.actualizarEstado(id, 'Despachada');
 
       final pedido = await PedidoService.obtenerPorId(id);
-      expect(pedido!.estado, 'Listo');
-      expect(pedido.estadoPago, 'Pendiente'); // No cambia
+      expect(pedido!.estado, OrderStatus.despachada);
+      expect(pedido.estadoPago, PaymentStatus.pendiente); // No cambia
     });
 
     test('actualizarEstadoPago cambia estadoPago', () async {
@@ -112,7 +114,7 @@ void main() {
       await PedidoService.actualizarEstadoPago(id, 'Cobrado');
 
       final pedido = await PedidoService.obtenerPorId(id);
-      expect(pedido!.estadoPago, 'Cobrado');
+      expect(pedido!.estadoPago, PaymentStatus.cobrado);
     });
 
     test('cancelar marca cancelado=1 y estado=Cancelada', () async {
@@ -121,7 +123,7 @@ void main() {
 
       final pedido = await PedidoService.obtenerPorId(id);
       expect(pedido!.cancelado, true);
-      expect(pedido.estado, 'Cancelada');
+      expect(pedido.estado, OrderStatus.cancelada);
     });
   });
 
@@ -168,7 +170,7 @@ void main() {
       // Cambiar 3 a Listo
       final todos = await PedidoService.obtenerTodos();
       for (int i = 0; i < 3; i++) {
-        await PedidoService.actualizarEstado(todos[i].id!, 'Listo');
+        await PedidoService.actualizarEstado(todos[i].id!, 'Despachada');
       }
 
       final resultado = await PedidoService.obtenerPorEstadoPaginados(
@@ -188,11 +190,11 @@ void main() {
         await PedidoService.guardar(_pedidoFactory());
       }
       final todos = await PedidoService.obtenerTodos();
-      await PedidoService.actualizarEstado(todos[0].id!, 'Listo');
-      await PedidoService.actualizarEstado(todos[1].id!, 'Listo');
+      await PedidoService.actualizarEstado(todos[0].id!, 'Despachada');
+      await PedidoService.actualizarEstado(todos[1].id!, 'Despachada');
 
       final enPrep = await PedidoService.obtenerPorEstado('En preparación');
-      final listos = await PedidoService.obtenerPorEstado('Listo');
+      final listos = await PedidoService.obtenerPorEstado('Despachada');
 
       expect(enPrep.length, 3);
       expect(listos.length, 2);
@@ -216,101 +218,116 @@ void main() {
 
   // ─── 1.4 CASO CRÍTICO: Consistencia de numeración ─────────────────────
 
-  group('🔴 CASO CRÍTICO: Consistencia de numeroOrden al cancelar/eliminar',
-      () {
+  group('🔴 CASO CRÍTICO: Consistencia de numeroOrden al cancelar/eliminar', () {
     test(
-        'Escenario volumen alto: 10 pedidos, cancelar 2, crear 5 más → verificar duplicación',
-        () async {
-      // 1. Crear 10 pedidos
-      final ids = <int>[];
-      for (int i = 0; i < 10; i++) {
-        ids.add(await PedidoService.guardar(
-            _pedidoFactory(cliente: 'Cliente ${i + 1}')));
-      }
-
-      // Verificar que tienen órdenes 1-10
-      final pedidosOriginales = <Pedido>[];
-      for (final id in ids) {
-        final p = await PedidoService.obtenerPorId(id);
-        expect(p, isNotNull);
-        pedidosOriginales.add(p!);
-      }
-      for (int i = 0; i < 10; i++) {
-        expect(pedidosOriginales[i].numeroOrden, i + 1,
-            reason: 'Pedido ${i + 1} debería tener numeroOrden ${i + 1}');
-      }
-
-      // 2. Cancelar pedido 3 y pedido 7 (índices 2 y 6)
-      await PedidoService.cancelar(ids[2]);
-      await PedidoService.cancelar(ids[6]);
-
-      // 3. Crear 5 pedidos nuevos
-      final nuevosIds = <int>[];
-      final nuevosOrdenes = <int>[];
-      for (int i = 0; i < 5; i++) {
-        final nuevoId = await PedidoService.guardar(
-            _pedidoFactory(cliente: 'Nuevo ${i + 1}'));
-        nuevosIds.add(nuevoId);
-        final p = await PedidoService.obtenerPorId(nuevoId);
-        nuevosOrdenes.add(p!.numeroOrden);
-      }
-
-      // 4. Documentar los números de orden asignados
-      log('=== CASO CRÍTICO: Números de orden ===');
-      log('Originales (1-10): ${pedidosOriginales.map((p) => '${p.cliente}=#${p.numeroOrden}').join(', ')}');
-      log('Cancelados: pedido 3 (orden #3) y pedido 7 (orden #7)');
-      log('Nuevos órdenes asignados: $nuevosOrdenes');
-
-      // 5. Verificar unicidad entre pedidos activos
-      final todosActivos = await PedidoService.obtenerTodos();
-      final numerosActivos = todosActivos.map((p) => p.numeroOrden).toList();
-      final numerosUnicos = numerosActivos.toSet();
-
-      log('Todos los numeroOrden activos: $numerosActivos');
-      log('¿Hay duplicados? ${numerosActivos.length != numerosUnicos.length}');
-
-      if (numerosActivos.length != numerosUnicos.length) {
-        // Encontrar duplicados
-        final conteo = <int, int>{};
-        for (final n in numerosActivos) {
-          conteo[n] = (conteo[n] ?? 0) + 1;
+      'Escenario volumen alto: 10 pedidos, cancelar 2, crear 5 más → verificar duplicación',
+      () async {
+        // 1. Crear 10 pedidos
+        final ids = <int>[];
+        for (int i = 0; i < 10; i++) {
+          ids.add(
+            await PedidoService.guardar(
+              _pedidoFactory(cliente: 'Cliente ${i + 1}'),
+            ),
+          );
         }
-        final duplicados =
-            conteo.entries.where((e) => e.value > 1).map((e) => e.key);
-        log('⚠️ DUPLICADOS ENCONTRADOS: $duplicados');
-      }
 
-      // Este test DOCUMENTA el comportamiento, no fuerza pass/fail sobre la duplicación.
-      // Verificar que al menos se crearon los pedidos correctamente.
-      expect(todosActivos.length, 13); // 10 - 2 cancelados + 5 nuevos
-    });
+        // Verificar que tienen órdenes 1-10
+        final pedidosOriginales = <Pedido>[];
+        for (final id in ids) {
+          final p = await PedidoService.obtenerPorId(id);
+          expect(p, isNotNull);
+          pedidosOriginales.add(p!);
+        }
+        for (int i = 0; i < 10; i++) {
+          expect(
+            pedidosOriginales[i].numeroOrden,
+            i + 1,
+            reason: 'Pedido ${i + 1} debería tener numeroOrden ${i + 1}',
+          );
+        }
 
-    test('Escenario eliminación masiva: crear 10, borrar todos, crear 5 → reinicia desde 1',
-        () async {
-      // 1. Crear 10 pedidos
-      for (int i = 0; i < 10; i++) {
-        await PedidoService.guardar(_pedidoFactory(cliente: 'C${i + 1}'));
-      }
-      final antes = await PedidoService.obtenerTodos();
-      expect(antes.length, 10);
+        // 2. Cancelar pedido 3 y pedido 7 (índices 2 y 6)
+        await PedidoService.cancelar(ids[2]);
+        await PedidoService.cancelar(ids[6]);
 
-      // 2. Eliminar todos los pedidos del día
-      await PedidoService.eliminarPedidosDelDiaActual();
-      final despuesBorrar = await PedidoService.obtenerTodos();
-      expect(despuesBorrar.length, 0);
+        // 3. Crear 5 pedidos nuevos
+        final nuevosIds = <int>[];
+        final nuevosOrdenes = <int>[];
+        for (int i = 0; i < 5; i++) {
+          final nuevoId = await PedidoService.guardar(
+            _pedidoFactory(cliente: 'Nuevo ${i + 1}'),
+          );
+          nuevosIds.add(nuevoId);
+          final p = await PedidoService.obtenerPorId(nuevoId);
+          nuevosOrdenes.add(p!.numeroOrden);
+        }
 
-      // 3. Crear 5 pedidos nuevos
-      final nuevosOrdenes = <int>[];
-      for (int i = 0; i < 5; i++) {
-        final id = await PedidoService.guardar(
-            _pedidoFactory(cliente: 'Nuevo ${i + 1}'));
-        final p = await PedidoService.obtenerPorId(id);
-        nuevosOrdenes.add(p!.numeroOrden);
-      }
+        // 4. Documentar los números de orden asignados
+        log('=== CASO CRÍTICO: Números de orden ===');
+        log(
+          'Originales (1-10): ${pedidosOriginales.map((p) => '${p.cliente}=#${p.numeroOrden}').join(', ')}',
+        );
+        log('Cancelados: pedido 3 (orden #3) y pedido 7 (orden #7)');
+        log('Nuevos órdenes asignados: $nuevosOrdenes');
 
-      // 4. Verificar que reinician desde 1
-      log('Secuencia post-eliminación: $nuevosOrdenes');
-      expect(nuevosOrdenes, [1, 2, 3, 4, 5]);
-    });
+        // 5. Verificar unicidad entre pedidos activos
+        final todosActivos = await PedidoService.obtenerTodos();
+        final numerosActivos = todosActivos.map((p) => p.numeroOrden).toList();
+        final numerosUnicos = numerosActivos.toSet();
+
+        log('Todos los numeroOrden activos: $numerosActivos');
+        log(
+          '¿Hay duplicados? ${numerosActivos.length != numerosUnicos.length}',
+        );
+
+        if (numerosActivos.length != numerosUnicos.length) {
+          // Encontrar duplicados
+          final conteo = <int, int>{};
+          for (final n in numerosActivos) {
+            conteo[n] = (conteo[n] ?? 0) + 1;
+          }
+          final duplicados = conteo.entries
+              .where((e) => e.value > 1)
+              .map((e) => e.key);
+          log('⚠️ DUPLICADOS ENCONTRADOS: $duplicados');
+        }
+
+        // Este test DOCUMENTA el comportamiento, no fuerza pass/fail sobre la duplicación.
+        // Verificar que al menos se crearon los pedidos correctamente.
+        expect(todosActivos.length, 13); // 10 - 2 cancelados + 5 nuevos
+      },
+    );
+
+    test(
+      'Escenario eliminación masiva: crear 10, borrar todos, crear 5 → reinicia desde 1',
+      () async {
+        // 1. Crear 10 pedidos
+        for (int i = 0; i < 10; i++) {
+          await PedidoService.guardar(_pedidoFactory(cliente: 'C${i + 1}'));
+        }
+        final antes = await PedidoService.obtenerTodos();
+        expect(antes.length, 10);
+
+        // 2. Eliminar todos los pedidos del día
+        await PedidoService.eliminarPedidosDelDiaActual();
+        final despuesBorrar = await PedidoService.obtenerTodos();
+        expect(despuesBorrar.length, 0);
+
+        // 3. Crear 5 pedidos nuevos
+        final nuevosOrdenes = <int>[];
+        for (int i = 0; i < 5; i++) {
+          final id = await PedidoService.guardar(
+            _pedidoFactory(cliente: 'Nuevo ${i + 1}'),
+          );
+          final p = await PedidoService.obtenerPorId(id);
+          nuevosOrdenes.add(p!.numeroOrden);
+        }
+
+        // 4. Verificar que reinician desde 1
+        log('Secuencia post-eliminación: $nuevosOrdenes');
+        expect(nuevosOrdenes, [1, 2, 3, 4, 5]);
+      },
+    );
   });
 }

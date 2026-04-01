@@ -36,18 +36,29 @@ class SupabaseSyncService {
         }
         return;
       }
-      final hoy = DateTime(DateTime.now().year, DateTime.now().month, DateTime.now().day);
+      final hoy = DateTime(
+        DateTime.now().year,
+        DateTime.now().month,
+        DateTime.now().day,
+      );
       int enviados = 0;
       for (int i = 0; i < _reportLookbackDays; i++) {
         final fecha = hoy.subtract(Duration(days: i));
         final esHoy = i == 0;
         try {
-          final auditoria = await DBHelper.obtenerAuditoriaSemanal(fecha, fecha);
-          final cantidadPedidos = auditoria['cantidad'] as int;
-          final totalVentas = auditoria['total'] as double;
+          final auditoria = await DBHelper.obtenerAuditoriaSemanal(
+            fecha,
+            fecha,
+          );
+          final cantidadPedidos = (auditoria['cantidad'] as int?) ?? 0;
+          final totalVentas = (auditoria['total'] as num?)?.toDouble() ?? 0.0;
           final debeEnviar = esHoy || totalVentas > 0;
           if (!debeEnviar) continue;
-          final topProductos = await DBHelper.obtenerTopProductosPorVentas(fecha, fecha, limit: 3);
+          final topProductos = await DBHelper.obtenerTopProductosPorVentas(
+            fecha,
+            fecha,
+            limit: 3,
+          );
           await _upsertReporteSemanal(
             fechaCorte: fecha,
             cantidadPedidos: cantidadPedidos,
@@ -56,14 +67,18 @@ class SupabaseSyncService {
           );
           enviados++;
         } catch (e) {
-          if (kDebugMode) debugPrint('⚠️ Error al sincronizar fecha ${_formatearFecha(fecha)}');
+          if (kDebugMode)
+            debugPrint(
+              '⚠️ Error al sincronizar fecha ${_formatearFecha(fecha)}',
+            );
         }
       }
       if (kDebugMode && enviados > 0) {
         debugPrint('✅ Reportes en background: $enviados días enviados.');
       }
     } catch (e) {
-      if (kDebugMode) debugPrint('⚠️ Error en envío background de reportes: $e');
+      if (kDebugMode)
+        debugPrint('⚠️ Error en envío background de reportes: $e');
     }
   }
 
@@ -85,7 +100,8 @@ class SupabaseSyncService {
         return;
       }
       final supabase = Supabase.instance.client;
-      final fechaString = '${fechaCorte.year.toString().padLeft(4, '0')}-'
+      final fechaString =
+          '${fechaCorte.year.toString().padLeft(4, '0')}-'
           '${fechaCorte.month.toString().padLeft(2, '0')}-'
           '${fechaCorte.day.toString().padLeft(2, '0')}';
 
@@ -99,11 +115,11 @@ class SupabaseSyncService {
         datos['top_productos'] = topProductos;
       }
 
-      await supabase.from('reportes_semanales').upsert(
-            datos,
-            onConflict: 'cliente_id,fecha_corte',
-          );
-      if (kDebugMode) debugPrint('✅ Reporte sincronizado (${_formatearFecha(fechaCorte)})');
+      await supabase
+          .from('reportes_semanales')
+          .upsert(datos, onConflict: 'cliente_id,fecha_corte');
+      if (kDebugMode)
+        debugPrint('✅ Reporte sincronizado (${_formatearFecha(fechaCorte)})');
     } catch (e) {
       if (kDebugMode) {
         debugPrint('❌ Error al subir reporte: $e');
@@ -132,7 +148,9 @@ class SupabaseSyncService {
     final tieneInternet = !connectivityResult.contains(ConnectivityResult.none);
 
     if (!tieneInternet) {
-      throw Exception('No hay conexión a internet. Verifique su conexión e intente nuevamente.');
+      throw Exception(
+        'No hay conexión a internet. Verifique su conexión e intente nuevamente.',
+      );
     }
 
     final auditoria = await DBHelper.obtenerAuditoriaSemanal(
@@ -140,13 +158,19 @@ class SupabaseSyncService {
       fechaFin,
     );
 
-    final cantidadPedidos = auditoria['cantidad'] as int;
-    final totalVentas = auditoria['total'] as double;
+    final cantidadPedidos = (auditoria['cantidad'] as int?) ?? 0;
+    final totalVentas = (auditoria['total'] as num?)?.toDouble() ?? 0.0;
 
-    debugPrint('Cierre de caja: $cantidadPedidos pedidos, \$${totalVentas.toStringAsFixed(2)}');
+    debugPrint(
+      'Cierre de caja: $cantidadPedidos pedidos, \$${totalVentas.toStringAsFixed(2)}',
+    );
 
     final fechaCorte = DateTime.now();
-    final topProductos = await DBHelper.obtenerTopProductosPorVentas(fechaInicio, fechaFin, limit: 3);
+    final topProductos = await DBHelper.obtenerTopProductosPorVentas(
+      fechaInicio,
+      fechaFin,
+      limit: 3,
+    );
     await _upsertReporteSemanal(
       fechaCorte: fechaCorte,
       cantidadPedidos: cantidadPedidos,

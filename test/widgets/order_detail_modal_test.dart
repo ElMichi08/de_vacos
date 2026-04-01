@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:de_vacos/widgets/order_detail_modal.dart';
 import 'package:de_vacos/models/pedido.dart';
+import 'package:de_vacos/models/enums.dart';
 
 void main() {
   group('OrderDetailModal', () {
@@ -13,9 +14,9 @@ void main() {
         numeroOrden: 42,
         cliente: 'María García',
         celular: '099123456',
-        metodoPago: 'Efectivo',
-        estado: 'Listo',
-        estadoPago: 'Cobrado',
+        metodoPago: PaymentMethod.efectivo,
+        estado: OrderStatus.despachada,
+        estadoPago: PaymentStatus.cobrado,
         productos: [
           {'nombre': 'Hamburguesa', 'cantidad': 2, 'precio': 150.0},
           {'nombre': 'Papas', 'cantidad': 1, 'precio': 80.0},
@@ -73,7 +74,7 @@ void main() {
       );
 
       expect(find.text('Estado:'), findsOneWidget);
-      expect(find.text('Listo'), findsOneWidget);
+      expect(find.text('Despachada'), findsOneWidget);
     });
 
     testWidgets('tiene botón de imprimir', (tester) async {

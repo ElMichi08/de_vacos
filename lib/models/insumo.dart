@@ -33,13 +33,16 @@ class Insumo {
   factory Insumo.fromMap(Map<String, dynamic> map) {
     return Insumo(
       id: map['id'],
-      nombre: map['nombre'] as String,
-      unidadMedida: map['unidadMedida'] as String,
+      nombre: map['nombre']?.toString() ?? '',
+      unidadMedida: map['unidadMedida']?.toString() ?? '',
       cantidadActual: (map['cantidadActual'] as num?)?.toDouble() ?? 0,
       cantidadMinima: (map['cantidadMinima'] as num?)?.toDouble() ?? 0,
-      costoUnitario: map['costoUnitario'] != null
-          ? (map['costoUnitario'] as num).toDouble()
-          : null,
+      costoUnitario:
+          map['costoUnitario'] != null
+              ? (map['costoUnitario'] is num
+                  ? (map['costoUnitario'] as num).toDouble()
+                  : double.tryParse(map['costoUnitario'].toString()))
+              : null,
       cancelado: (map['cancelado'] ?? 0) == 1,
     );
   }
@@ -48,9 +51,12 @@ class Insumo {
 
   String? validar() {
     if (nombre.trim().isEmpty) return 'El nombre es obligatorio';
-    if (unidadMedida.trim().isEmpty) return 'La unidad de medida es obligatoria';
-    if (cantidadActual.isNegative) return 'La cantidad actual no puede ser negativa';
-    if (cantidadMinima.isNegative) return 'La cantidad mínima no puede ser negativa';
+    if (unidadMedida.trim().isEmpty)
+      return 'La unidad de medida es obligatoria';
+    if (cantidadActual.isNegative)
+      return 'La cantidad actual no puede ser negativa';
+    if (cantidadMinima.isNegative)
+      return 'La cantidad mínima no puede ser negativa';
     if (costoUnitario != null && costoUnitario! < 0) {
       return 'El costo unitario no puede ser negativo';
     }

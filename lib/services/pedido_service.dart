@@ -1,8 +1,10 @@
 import 'package:de_vacos/injection/container.dart';
 import 'package:de_vacos/models/pedido.dart';
+import 'package:de_vacos/models/enums.dart';
 import 'package:de_vacos/services/facturacion/facturacion_service.dart';
 import 'package:de_vacos/services/insumo_service.dart';
 import 'package:de_vacos/services/receta_service.dart';
+import 'package:flutter/foundation.dart';
 
 class PedidoService {
   static Future<List<Pedido>> obtenerTodos({
@@ -113,7 +115,8 @@ class PedidoService {
       fechaInicio: fechaInicio,
       fechaFin: fechaFin,
     );
-    return all.where((p) => p.estado == estado && !p.cancelado).toList();
+    final estadoEnum = OrderStatus.fromString(estado);
+    return all.where((p) => p.estado == estadoEnum && !p.cancelado).toList();
   }
 
   static Future<Pedido?> obtenerPorId(int id) async {
@@ -132,9 +135,9 @@ class PedidoService {
 
   static Future<int> actualizarEstado(int id, String nuevoEstado) async {
     // Validar que no se pueda cerrar un pedido sin cobrar
-    if (nuevoEstado == 'Cerrados') {
+    if (nuevoEstado == OrderStatus.cerrados.displayName) {
       final pedido = await obtenerPorId(id);
-      if (pedido != null && pedido.estadoPago != 'Cobrado') {
+      if (pedido != null && pedido.estadoPago != PaymentStatus.cobrado) {
         throw Exception('No se puede cerrar un pedido sin cobrar');
       }
     }
@@ -151,7 +154,7 @@ class PedidoService {
     String? fotoTransferenciaPath,
   }) async {
     // Si se está cobrando, descontar stock PRIMERO antes de actualizar estado
-    if (nuevoEstadoPago == 'Cobrado') {
+    if (nuevoEstadoPago == PaymentStatus.cobrado.displayName) {
       final pedido = await obtenerPorId(id);
       if (pedido != null) {
         // Descuenta stock (lanza excepción si stock insuficiente)
@@ -167,7 +170,7 @@ class PedidoService {
     );
 
     // Registrar venta en facturación (después de actualizar estado)
-    if (rows > 0 && nuevoEstadoPago == 'Cobrado') {
+    if (rows > 0 && nuevoEstadoPago == PaymentStatus.cobrado.displayName) {
       final pedido = await obtenerPorId(id);
       if (pedido != null) {
         await FacturacionService.instance.registrarVentaCobrada(pedido);
@@ -182,12 +185,26 @@ class PedidoService {
 
     for (final prod in productos) {
       final productoIdRaw = prod['productoId'] ?? prod['id'];
-      if (productoIdRaw == null) continue;
+      if (productoIdRaw == null) {
+        if (kDebugMode) {
+          debugPrint(
+            'Skipping product in stock discount: missing productoId/id in $prod',
+          );
+        }
+        continue;
+      }
       final productoId =
           productoIdRaw is int
               ? productoIdRaw
               : int.tryParse(productoIdRaw.toString());
-      if (productoId == null) continue;
+      if (productoId == null) {
+        if (kDebugMode) {
+          debugPrint(
+            'Skipping product in stock discount: cannot parse productoId from $productoIdRaw',
+          );
+        }
+        continue;
+      }
 
       final cantidadRaw = prod['cantidad'] ?? 1;
       final cantidad =
@@ -196,6 +213,13 @@ class PedidoService {
               : (cantidadRaw is double
                   ? cantidadRaw.toInt()
                   : int.tryParse(cantidadRaw.toString()) ?? 1);
+      if (cantidadRaw is! int && cantidadRaw is! double) {
+        if (kDebugMode) {
+          debugPrint(
+            'Quantity fallback to $cantidad for productoId $productoId (raw: $cantidadRaw)',
+          );
+        }
+      }
 
       // Obtener receta del producto
       final recetas = await RecetaService.obtenerPorProducto(productoId);
@@ -205,6 +229,12 @@ class PedidoService {
           recetas: recetas,
           cantidadProducto: cantidad,
         );
+      } else {
+        if (kDebugMode) {
+          debugPrint(
+            'No recipe found for productoId $productoId, stock not discounted.',
+          );
+        }
       }
     }
   }

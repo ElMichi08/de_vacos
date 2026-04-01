@@ -19,12 +19,28 @@ class AcompananteSeleccionado {
   }
 
   factory AcompananteSeleccionado.fromMap(Map<String, dynamic> map) {
+    // Helper to parse int safely
+    int parseInt(dynamic value, {int defaultValue = 0}) {
+      if (value is int) return value;
+      if (value is double) return value.toInt();
+      if (value is num) return value.toInt();
+      if (value is String) return int.tryParse(value) ?? defaultValue;
+      return defaultValue;
+    }
+
+    // Helper to parse double safely
+    double parseDouble(dynamic value, {double defaultValue = 0.0}) {
+      if (value is double) return value;
+      if (value is int) return value.toDouble();
+      if (value is num) return value.toDouble();
+      if (value is String) return double.tryParse(value) ?? defaultValue;
+      return defaultValue;
+    }
+
     return AcompananteSeleccionado(
-      nombre: map['nombre'] as String,
-      precioAdicional: map['precioAdicional'] is int
-          ? (map['precioAdicional'] as int).toDouble()
-          : (map['precioAdicional'] as double?) ?? 0.0,
-      cantidad: map['cantidad'] as int? ?? 1,
+      nombre: map['nombre']?.toString() ?? '',
+      precioAdicional: parseDouble(map['precioAdicional']),
+      cantidad: parseInt(map['cantidad'], defaultValue: 1),
     );
   }
 }
@@ -37,9 +53,11 @@ class ProductoSeleccionado {
   final int productoId;
   final String nombreProducto;
   final int cantidad;
-  final String? varianteNombre; // Nombre de la variante seleccionada (null si no tiene variantes)
+  final String?
+  varianteNombre; // Nombre de la variante seleccionada (null si no tiene variantes)
   final double precioBase; // Precio de la variante o precio base
-  final List<AcompananteSeleccionado> acompanantes; // Lista de acompañantes con cantidades
+  final List<AcompananteSeleccionado>
+  acompanantes; // Lista de acompañantes con cantidades
   final List<String> extrasNombres; // Lista de nombres de extras seleccionados
   final double precioExtras; // Suma de precios de extras
 
@@ -56,15 +74,21 @@ class ProductoSeleccionado {
     // Retrocompatibilidad: mantener campos antiguos
     String? acompananteNombre,
     double precioAcompanante = 0.0,
-  }) : id = id ?? '${DateTime.now().millisecondsSinceEpoch}_${productoId}_${varianteNombre ?? 'base'}',
+  }) : id =
+           id ??
+           '${DateTime.now().millisecondsSinceEpoch}_${productoId}_${varianteNombre ?? 'base'}',
        extrasNombres = extrasNombres ?? [],
-       acompanantes = acompanantes ?? (acompananteNombre != null 
-           ? [AcompananteSeleccionado(
-               nombre: acompananteNombre,
-               precioAdicional: precioAcompanante,
-               cantidad: 1,
-             )]
-           : []);
+       acompanantes =
+           acompanantes ??
+           (acompananteNombre != null
+               ? [
+                 AcompananteSeleccionado(
+                   nombre: acompananteNombre,
+                   precioAdicional: precioAcompanante,
+                   cantidad: 1,
+                 ),
+               ]
+               : []);
 
   /// Calcula el precio total de acompañantes para esta instancia
   /// Como cada instancia tiene cantidad = 1, esto es simplemente la suma de precios
@@ -74,9 +98,10 @@ class ProductoSeleccionado {
       (sum, a) => sum + (a.precioAdicional * a.cantidad),
     );
   }
-  
+
   /// Calcula el precio unitario de esta instancia (cantidad siempre es 1)
-  double get precioUnitario => precioBase + precioAcompanantesTotal + precioExtras;
+  double get precioUnitario =>
+      precioBase + precioAcompanantesTotal + precioExtras;
 
   /// Calcula el precio total (precio unitario * cantidad)
   /// Como cantidad siempre es 1, esto es igual a precioUnitario
@@ -85,11 +110,11 @@ class ProductoSeleccionado {
   /// Genera un nombre descriptivo para mostrar en la UI
   String get nombreCompleto {
     final partes = <String>[nombreProducto];
-    
+
     if (varianteNombre != null) {
       partes.add('($varianteNombre)');
     }
-    
+
     // Mostrar acompañantes con sus cantidades
     if (acompanantes.isNotEmpty) {
       final acompanantesStr = acompanantes
@@ -97,18 +122,21 @@ class ProductoSeleccionado {
           .join(', ');
       partes.add('+ $acompanantesStr');
     }
-    
+
     if (extrasNombres.isNotEmpty) {
       partes.add('+ ${extrasNombres.join(", ")}');
     }
-    
+
     return partes.join(' ');
   }
-  
+
   /// Valida que la suma de cantidades de acompañantes sea igual a la cantidad del producto
   bool get acompanantesValidados {
     if (acompanantes.isEmpty) return true;
-    final totalAcompanantes = acompanantes.fold<int>(0, (sum, a) => sum + a.cantidad);
+    final totalAcompanantes = acompanantes.fold<int>(
+      0,
+      (sum, a) => sum + a.cantidad,
+    );
     return totalAcompanantes == cantidad;
   }
 
@@ -136,49 +164,68 @@ class ProductoSeleccionado {
         'precioAcompanante': acompanantes.first.precioAdicional,
     };
   }
-  
+
   /// Crea una instancia desde un Map (deserialización)
   factory ProductoSeleccionado.fromMap(Map<String, dynamic> map) {
+    // Helper to parse int safely
+    int parseInt(dynamic value, {int defaultValue = 0}) {
+      if (value is int) return value;
+      if (value is double) return value.toInt();
+      if (value is num) return value.toInt();
+      if (value is String) return int.tryParse(value) ?? defaultValue;
+      return defaultValue;
+    }
+
+    // Helper to parse double safely
+    double parseDouble(dynamic value, {double defaultValue = 0.0}) {
+      if (value is double) return value;
+      if (value is int) return value.toDouble();
+      if (value is num) return value.toDouble();
+      if (value is String) return double.tryParse(value) ?? defaultValue;
+      return defaultValue;
+    }
+
     final extras = map['extras'];
-    final extrasList = extras is List 
-        ? List<String>.from(extras.map((e) => e.toString()))
-        : <String>[];
-    
+    final extrasList =
+        extras is List
+            ? List<String>.from(extras.map((e) => e.toString()))
+            : <String>[];
+
     // Cargar acompañantes (nuevo formato o retrocompatibilidad)
     List<AcompananteSeleccionado> acompanantesList = [];
     if (map.containsKey('acompanantes') && map['acompanantes'] is List) {
       final acompanantesData = map['acompanantes'] as List;
-      acompanantesList = acompanantesData
-          .map((a) => AcompananteSeleccionado.fromMap(a as Map<String, dynamic>))
-          .toList();
+      acompanantesList =
+          acompanantesData
+              .where((a) => a is Map)
+              .map(
+                (a) => AcompananteSeleccionado.fromMap(
+                  (a as Map).cast<String, dynamic>(),
+                ),
+              )
+              .toList();
     } else if (map.containsKey('acompanante') && map['acompanante'] != null) {
       // Retrocompatibilidad: formato antiguo con un solo acompañante
       acompanantesList = [
         AcompananteSeleccionado(
-          nombre: map['acompanante'] as String,
-          precioAdicional: map['precioAcompanante'] is int
-              ? (map['precioAcompanante'] as int).toDouble()
-              : (map['precioAcompanante'] as double?) ?? 0.0,
-          cantidad: map['cantidad'] as int? ?? 1,
+          nombre: map['acompanante']?.toString() ?? '',
+          precioAdicional: parseDouble(map['precioAcompanante']),
+          cantidad: parseInt(map['cantidad'], defaultValue: 1),
         ),
       ];
     }
-    
+
     return ProductoSeleccionado(
-      id: map['instanciaId'] as String?,
-      productoId: map['id'] as int,
-      nombreProducto: map['nombre'] as String? ?? map['nombreCompleto'] as String? ?? '',
-      cantidad: map['cantidad'] as int? ?? 1,
-      varianteNombre: map['variante'] as String?,
-      precioBase: (map['precioBase'] ?? map['precio']) is int
-          ? ((map['precioBase'] ?? map['precio']) as int).toDouble()
-          : ((map['precioBase'] ?? map['precio']) as double?) ?? 0.0,
+      id: map['instanciaId']?.toString(),
+      productoId: parseInt(map['id']),
+      nombreProducto:
+          map['nombre']?.toString() ?? map['nombreCompleto']?.toString() ?? '',
+      cantidad: parseInt(map['cantidad'], defaultValue: 1),
+      varianteNombre: map['variante']?.toString(),
+      precioBase: parseDouble(map['precioBase'] ?? map['precio']),
       acompanantes: acompanantesList,
       extrasNombres: extrasList,
-      precioExtras: map['precioExtras'] is int
-          ? (map['precioExtras'] as int).toDouble()
-          : (map['precioExtras'] as double?) ?? 0.0,
+      precioExtras: parseDouble(map['precioExtras']),
     );
   }
 }
-

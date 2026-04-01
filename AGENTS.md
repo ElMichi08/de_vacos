@@ -75,7 +75,23 @@ Ref: `@agents/rules/architecture.md` para deuda técnica y detalles.
 
 Ref: `@agents/rules/security.md` para detalles completos.
 
-## 7. Skills Registry
+## 6.5 Business Rules
+Para reglas de negocio críticas ver: `.agents/rules/business-rules.md`
+
+**Guía para el Orquestador:** Al delegar tareas que involucren reglas de negocio, identifica las categorías relevantes (Pedidos, Inventario, Caja, Reportes, Validaciones, Impresión, Sincronización) basándote en los archivos/modulos afectados. Especifica en la tarea del sub-agente: "Consulta las reglas en las secciones [categorías] de business-rules.md".
+
+**Mapeo rápido:**
+- Archivos que contienen "pedido" o "order" → Pedidos, Validaciones
+- Archivos que contienen "insumo" o "stock" → Inventario, Validaciones
+- Archivos que contienen "caja" o "cash" → Caja
+- Archivos que contienen "report" o "audit" → Reportes
+- Archivos que contienen "product" o "modelo" → Validaciones de Modelos
+- Archivos que contienen "print" o "ticket" → Impresión
+- Archivos que contienen "sync" o "supabase" → Sincronización
+
+**Responsabilidad del PM:** Documentar y actualizar reglas de negocio en `business-rules.md` cuando haya cambios en el código que afecten reglas existentes o se agreguen nuevas. Referenciar observaciones de Engram (IDs) para mantener contexto histórico.
+
+## 8. Skills Registry
 
 Las skills se cargan **únicamente** en sub-agentes, nunca en el Orquestador.
 
@@ -95,8 +111,9 @@ Las skills se cargan **únicamente** en sub-agentes, nunca en el Orquestador.
 | Git commit messages | `git-commit` | `.agents/skills/` |
 | GitHub CLI | `gh-cli` | `.agents/skills/` |
 | Documentación de código y README | `code-documenter` | `.agents/skills/` |
-| Testing QA patterns | `qa-expert` | skills.sh (pendiente instalar) |
-| Security review | `security-review` | skills.sh (pendiente instalar) |
+| Testing QA patterns | `qa-expert` | `.agents/skills/` (instalada) |
+| Security review | `security-review` | `.agents/skills/` (instalada) |
+| Revisión de calidad | `quality-gate` | `.agents/rules/quality-gate.md` |
 
 ### Skill Manager Agent
 
@@ -112,7 +129,7 @@ Las skills se cargan **únicamente** en sub-agentes, nunca en el Orquestador.
 
 **Persistencia:** Toda acción se guarda en Engram (mem_save).
 
-## 8. Orchestration
+## 9. Orchestration
 
 ### Roles del Pipeline
 
@@ -123,7 +140,9 @@ Las skills se cargan **únicamente** en sub-agentes, nunca en el Orquestador.
 | **Desarrollador** | Crea, edita, elimina código + pruebas unitarias | Para implementación de features/bugfixes |
 | **QA** | Valida tests del Dev, crea pruebas de integración | Después de implementación del Desarrollador |
 | **Ingeniero Cybersecurity** | Detecta vulnerabilidades, reporta cambios | Después de QA o en paralelo |
-| **PM (Project Manager)** | Último revisor de calidad, aplica commits convencionales, ejecuta push | Después de IC (o QA si no hay vulnerabilidades) |
+| **PM (Project Manager)** | Último revisor de calidad, aplica commits convencionales, ejecuta push, documenta/actualiza reglas de negocio en business-rules.md | Después de IC (o QA si no hay vulnerabilidades) |
+
+**Nota (PM):** El PM debe consultar la regla de calidad (`@agents/rules/quality-gate.md`) antes de cualquier commit/push.
 
 ### Flujo de Implementación
 
@@ -139,6 +158,28 @@ Las skills se cargan **únicamente** en sub-agentes, nunca en el Orquestador.
 9. Si todo OK → Lanza PM (revisión final + git)
 10. PM → Retorna commit y push
 11. Finalizar
+```
+
+### Investigación y Planificación
+
+**Para tareas complejas o que involucran múltiples archivos:**
+
+1. **Investigación por PM:** El Orquestador primero lanza al PM con tarea de investigación específica
+   - `Task tool` → PM: "Investiga [área/archivo] y crea reporte estructurado"
+   - PM retorna: Archivos afectados, tamaños, patrones de código, reglas de negocio involucradas, riesgos
+
+2. **Planificación basada en reporte:** El Orquestador usa el reporte del PM para:
+   - Identificar sub-agentes necesarios
+   - Determinar orden de ejecución
+   - Especificar tareas detalladas para cada sub-agente
+
+3. **Delegación:** Orquestador lanza sub-agentes según plan con contexto del reporte
+
+**Ejemplo flujo:**
+```
+Orquestador → PM: "Investiga order_form_widget.dart y áreas relacionadas"
+PM → Reporte: {archivos: 2, tamaño: 3326 líneas, patrones: distribución acompañantes, riesgos: ...}
+Orquestador → Desarrollador: "Divide order_form_widget.dart en 3 componentes (ver reporte PM)"
 ```
 
 ### Reglas de Ejecución
@@ -162,7 +203,7 @@ Las skills se cargan **únicamente** en sub-agentes, nunca en el Orquestador.
 
 Ref: `@agents/rules/orchestration.md` para flujos completos, Output Contracts, contexto mínimo.
 
-## 9. Engram
+## 10. Engram
 
 Sistema de memoria persistente para reducir pérdida de contexto.
 
@@ -172,7 +213,7 @@ Sistema de memoria persistente para reducir pérdida de contexto.
 
 Ref: `@agents/rules/engram.md` para formato y reglas.
 
-## 10. Intake Protocol (Michibot)
+## 11. Intake Protocol (Michibot)
 
 ### Trigger
 Usuario dice: "Michibot [tarea]"
@@ -190,3 +231,10 @@ Usuario dice: "Michibot [tarea]"
 ### Ejemplo
 - "Michibot agrega dark mode al Settings" → ejecutar
 - "Michibot arregla el bug de pagos" → confirmar alcance antes
+
+
+-Fix all bugs
+opencode -s ses_2c03464e4ffer0LsP2ZB2T5hHH
+
+-Toneks
+opencode -s ses_2bffca113ffe0GhxLZ5TQshefH
