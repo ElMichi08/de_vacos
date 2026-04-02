@@ -3,6 +3,7 @@ import 'package:de_vacos/models/insumo.dart';
 import 'package:de_vacos/models/receta_detalle.dart';
 import 'package:de_vacos/core/database/db_helper.dart';
 import 'package:de_vacos/core/exceptions/stock_insuficiente_exception.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 class InsumoService {
   static Future<List<Insumo>> listar() async {
@@ -39,12 +40,9 @@ class InsumoService {
   static Future<void> descontarStock({
     required List<RecetaDetalle> recetas,
     required int cantidadProducto,
+    Transaction? txn,
   }) async {
-    final db = await DBHelper.db;
-
-    // Usar transacción para atomicidad
-    await db.transaction((txn) async {
-      // 1. Validar stock suficiente primero (dentro de transacción)
+    Future<void> executeStockDiscount(Transaction tx) async {
       for (final receta in recetas) {
         final insumo = await obtenerPorId(receta.insumoId);
         if (insumo == null) continue;
@@ -59,14 +57,23 @@ class InsumoService {
         }
       }
 
-      // 2. Descontar stock (si todas las validaciones pasaron)
       for (final receta in recetas) {
         final requerido = receta.cantidad * cantidadProducto;
-        await txn.rawUpdate(
+        await tx.rawUpdate(
           'UPDATE insumos SET cantidadActual = cantidadActual - ? WHERE id = ?',
           [requerido, receta.insumoId],
         );
       }
+    }
+
+    if (txn != null) {
+      await executeStockDiscount(txn);
+      return;
+    }
+
+    final db = await DBHelper.db;
+    await db.transaction((tx) async {
+      await executeStockDiscount(tx);
     });
   }
 }

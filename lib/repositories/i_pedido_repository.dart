@@ -1,4 +1,5 @@
 import 'package:de_vacos/models/pedido.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 abstract class IPedidoRepository {
   Future<Pedido> crearPedido(Pedido pedido);
@@ -12,6 +13,11 @@ abstract class IPedidoRepository {
   Future<void> actualizarEstado(int id, String estado);
   Future<void> actualizarPedido(Pedido pedido);
   Future<void> eliminarPedido(int id);
-  Future<int> actualizarEstadoPago(int pedidoId, String estadoPago, {String? fotoTransferenciaPath});
+  Future<int> actualizarEstadoPago(
+    int pedidoId,
+    String estadoPago, {
+    String? fotoTransferenciaPath,
+    Transaction? txn,
+  });
   Future<int> eliminarPedidosDelDiaActual();
 }

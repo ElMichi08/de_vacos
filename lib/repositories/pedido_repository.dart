@@ -2,6 +2,7 @@ import 'package:de_vacos/models/pedido.dart';
 import 'package:de_vacos/models/enums.dart';
 import 'package:de_vacos/repositories/i_pedido_repository.dart';
 import 'package:de_vacos/core/database/db_helper.dart';
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 class PedidoRepository implements IPedidoRepository {
   @override
@@ -174,7 +175,21 @@ class PedidoRepository implements IPedidoRepository {
     int pedidoId,
     String estadoPago, {
     String? fotoTransferenciaPath,
+    Transaction? txn,
   }) async {
+    if (txn != null) {
+      final updateData = <String, dynamic>{'estadoPago': estadoPago};
+      if (fotoTransferenciaPath != null) {
+        updateData['fotoTransferenciaPath'] = fotoTransferenciaPath;
+      }
+      return await txn.update(
+        'pedidos',
+        updateData,
+        where: 'id = ?',
+        whereArgs: [pedidoId],
+      );
+    }
+
     final db = await DBHelper.db;
     return await db.transaction((txn) async {
       final updateData = <String, dynamic>{'estadoPago': estadoPago};
