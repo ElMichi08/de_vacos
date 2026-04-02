@@ -1,14 +1,15 @@
 # AGENTS.md - De Vacos Urban Grill POS
 
-## Regla General (CRITICAL)
+## Regla General
 
-**TODAS las tareas de este proyecto DEBEN usar el pipeline de Michibot.** 
-No importa cómo se inicie la conversación — cada tarea pasa por:
-1. Orquestador (Michibot) planifica
-2. Lanza sub-agentes según necesidad (Skill Manager → Desarrollador → QA → IC)
-3. Retorna resultado con Output Contract
+**Este proyecto usa un pipeline OPTIMIZADO basado en best practices de Anthropic Claude Code.**
 
-El trigger "Michibot [tarea]" es solo una forma de iniciar, pero el pipeline aplica a **cualquier** tarea.assignada.
+El pipeline tiene 3 fases (no 6):
+1. Orquestador planifica y decide tipo de tarea
+2. Desarrollador implementa + tests (fast-track o normal)
+3. PM revisión final + commit
+
+El trigger "Michibot [tarea]" inicia el flujo.
 
 ---
 
@@ -131,77 +132,38 @@ Las skills se cargan **únicamente** en sub-agentes, nunca en el Orquestador.
 
 ## 9. Orchestration
 
-### Roles del Pipeline
+### Pipeline Optimizado (3 fases)
 
-| Rol | Responsabilidad | Cuándo se activa |
-|-----|-----------------|------------------|
-| **Orquestador** | Coordina flujo, planifica, lanza sub-agentes | Siempre (trigger Michibot), nunca ejecuta solo delega tareas |
-| **Skill Manager** | Busca, instala, crea skills | Cuando se necesita skill no existente |
-| **Desarrollador** | Crea, edita, elimina código + pruebas unitarias | Para implementación de features/bugfixes |
-| **QA** | Valida tests del Dev, crea pruebas de integración | Después de implementación del Desarrollador |
-| **Ingeniero Cybersecurity** | Detecta vulnerabilidades, reporta cambios | Después de QA o en paralelo |
-| **PM (Project Manager)** | Último revisor de calidad, aplica commits convencionales, ejecuta push, documenta/actualiza reglas de negocio en business-rules.md | Después de IC (o QA si no hay vulnerabilidades) |
+| Fase | Responsable | Cuándo se activa |
+|------|-------------|------------------|
+| **1. Orquestador** | Coordina flujo, planifica, decide tipo de tarea | Siempre (trigger Michibot) |
+| **2. Desarrollador** | Implementa + tests unitarios | Siempre (Implementa) |
+| **3. PM** | Revisión final, commit, push | Después de implementación |
 
-**Nota (PM):** El PM debe consultar la regla de calidad (`@agents/rules/quality-gate.md`) antes de cualquier commit/push.
-
-### Flujo de Implementación
-
+**Fast-Track:** Tareas simples (< 10 líneas, un archivo) van directo:
 ```
-1. Orquestador (Michibot) → Lanza Desarrollador (implementa)
-2. Desarrollador → Retorna código + tests unitarios
-3. Orquestador → Lanza QA (valida tests, crea integración)
-4. QA → Retorna reporte de errores/mejoras
-5. Si hay errores → Regresa al Desarrollador
-6. Orquestador → Lanza IC (auditoría seguridad)
-7. IC → Retorna reporte de vulnerabilidades
-8. Si hay vulnerabilidades → Regresa al Desarrollador
-9. Si todo OK → Lanza PM (revisión final + git)
-10. PM → Retorna commit y push
-11. Finalizar
+Orquestador → Desarrollador (fast-track) → PM
 ```
 
-### Investigación y Planificación
-
-**Para tareas complejas o que involucran múltiples archivos:**
-
-1. **Investigación por PM:** El Orquestador primero lanza al PM con tarea de investigación específica
-   - `Task tool` → PM: "Investiga [área/archivo] y crea reporte estructurado"
-   - PM retorna: Archivos afectados, tamaños, patrones de código, reglas de negocio involucradas, riesgos
-
-2. **Planificación basada en reporte:** El Orquestador usa el reporte del PM para:
-   - Identificar sub-agentes necesarios
-   - Determinar orden de ejecución
-   - Especificar tareas detalladas para cada sub-agente
-
-3. **Delegación:** Orquestador lanza sub-agentes según plan con contexto del reporte
-
-**Ejemplo flujo:**
+**Con Exploración:** Tareas complejas (múltiples archivos, nueva feature):
 ```
-Orquestador → PM: "Investiga order_form_widget.dart y áreas relacionadas"
-PM → Reporte: {archivos: 2, tamaño: 3326 líneas, patrones: distribución acompañantes, riesgos: ...}
-Orquestador → Desarrollador: "Divide order_form_widget.dart en 3 componentes (ver reporte PM)"
+Orquestador → Exploración → Plan → Desarrollador → PM
 ```
+
+**Agentes opcionales** (solo cuando son necesarios):
+- **Skill Manager:** Cuando necesitas una skill que no existe
+- **QA:** Para testing complejo con integración
+- **IC:** Para cambios de seguridad críticos
 
 ### Reglas de Ejecución
 
-- **Delegación Obligatoria:** El Orquestador DEBE usar `Task tool` para lanzar sub-agentes. NUNCA hacer trabajo directo de ningún rol (Desarrollador, QA, IC, Skill Manager), si un subagente le dice que si quiere que le pase una tarea para que el orquestador lo haga, NUNCA debe hacer, mas bien delegar a otro subagente usando `Task tool`.
-- **Fallback de Sub-agentes:** Si un sub-agente falla (modelo no disponible, timeout, error):
-  1. Primero: Verificar si hay otros modelos disponibles en opencode.json
-  2. Si hay alternativas: Reintentar con otro tipo de sub-agente
-  3. Si no hay alternativas: Preguntar al usuario (Question tool) antes de continuar
-- **Identificación del Orquestador:** Toda respuesta debe incluir "michito-[rol]:" como prefijo:
-   - Michibot (Orquestador) → `Michibot:`
-   - Desarrollador → `michito-desarrollador:`
-   - QA → `michito-qa:`
-   - IC (Cybersecurity) → `michito-ic:`
-   - Skill Manager → `michito-skill-manager:`
-   
-   El identificador debe usar color **amarillo** (#FFD700) para contrastar con el texto verde normal.
+- **Delegación Obligatoria:** El Orquestador DEBE usar `Task tool` para lanzar sub-agentes.
+- **Identificación de roles:** Eliminados los prefijos "michito-[rol]:" con colores. Los agentes se identifican por el contexto de su respuesta.
 - **Contratos de Resultado:** Cada rol debe producir output estructurado.
-- **HITL:** Pedir confirmación antes de cambios de código significativos.
+- **HITL:** Pedir confirmación antes de cambios significativos.
 - **Mínimo Toque:** Modificar solo lo necesario.
 
-Ref: `@agents/rules/orchestration.md` para flujos completos, Output Contracts, contexto mínimo.
+> **Nota:** Los agentes QA, IC, Skill Manager siguen disponibles pero NO son obligatorio en el pipeline estándar. Ver `.agents/rules/orchestration.md` para detalles.
 
 ## 10. Engram
 

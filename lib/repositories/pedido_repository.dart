@@ -1,7 +1,7 @@
 import 'package:de_vacos/models/pedido.dart';
+import 'package:de_vacos/models/enums.dart';
 import 'package:de_vacos/repositories/i_pedido_repository.dart';
 import 'package:de_vacos/core/database/db_helper.dart';
-import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 
 class PedidoRepository implements IPedidoRepository {
   @override
@@ -14,7 +14,7 @@ class PedidoRepository implements IPedidoRepository {
         cliente: pedido.cliente,
         celular: pedido.celular,
         metodoPago: pedido.metodoPago,
-        estado: 'En preparación',
+        estado: OrderStatus.enPreparacion,
         estadoPago: pedido.estadoPago,
         productos: pedido.productos,
         fecha: pedido.fecha,
@@ -31,7 +31,7 @@ class PedidoRepository implements IPedidoRepository {
         cliente: pedido.cliente,
         celular: pedido.celular,
         metodoPago: pedido.metodoPago,
-        estado: 'En preparación',
+        estado: OrderStatus.enPreparacion,
         estadoPago: pedido.estadoPago,
         productos: pedido.productos,
         fecha: pedido.fecha,
@@ -41,7 +41,7 @@ class PedidoRepository implements IPedidoRepository {
         cancelado: false,
         fotoTransferenciaPath: pedido.fotoTransferenciaPath,
       );
-    }, exclusive: true);
+    });
   }
 
   @override
@@ -117,12 +117,14 @@ class PedidoRepository implements IPedidoRepository {
   @override
   Future<void> actualizarEstado(int id, String nuevoEstado) async {
     final db = await DBHelper.db;
-    await db.update(
-      'pedidos',
-      {'estado': nuevoEstado},
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    await db.transaction((txn) async {
+      await txn.update(
+        'pedidos',
+        {'estado': nuevoEstado},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    });
   }
 
   @override
@@ -144,23 +146,27 @@ class PedidoRepository implements IPedidoRepository {
       defaultValue: 'NULL',
     );
 
-    await db.update(
-      'pedidos',
-      pedido.toMap(),
-      where: 'id = ?',
-      whereArgs: [pedido.id],
-    );
+    await db.transaction((txn) async {
+      await txn.update(
+        'pedidos',
+        pedido.toMap(),
+        where: 'id = ?',
+        whereArgs: [pedido.id],
+      );
+    });
   }
 
   @override
   Future<void> eliminarPedido(int id) async {
     final db = await DBHelper.db;
-    await db.update(
-      'pedidos',
-      {'cancelado': 1, 'estado': 'Cancelada'},
-      where: 'id = ?',
-      whereArgs: [id],
-    );
+    await db.transaction((txn) async {
+      await txn.update(
+        'pedidos',
+        {'cancelado': 1, 'estado': 'Cancelada'},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+    });
   }
 
   @override
@@ -170,29 +176,33 @@ class PedidoRepository implements IPedidoRepository {
     String? fotoTransferenciaPath,
   }) async {
     final db = await DBHelper.db;
-    final updateData = <String, dynamic>{'estadoPago': estadoPago};
-    if (fotoTransferenciaPath != null) {
-      updateData['fotoTransferenciaPath'] = fotoTransferenciaPath;
-    }
-    final rows = await db.update(
-      'pedidos',
-      updateData,
-      where: 'id = ?',
-      whereArgs: [pedidoId],
-    );
-    return rows;
+    return await db.transaction((txn) async {
+      final updateData = <String, dynamic>{'estadoPago': estadoPago};
+      if (fotoTransferenciaPath != null) {
+        updateData['fotoTransferenciaPath'] = fotoTransferenciaPath;
+      }
+      final rows = await txn.update(
+        'pedidos',
+        updateData,
+        where: 'id = ?',
+        whereArgs: [pedidoId],
+      );
+      return rows;
+    });
   }
 
   @override
   Future<int> eliminarPedidosDelDiaActual() async {
     final db = await DBHelper.db;
-    final hoy = DateTime.now();
-    final inicio = DateTime(hoy.year, hoy.month, hoy.day);
-    final fin = DateTime(hoy.year, hoy.month, hoy.day, 23, 59, 59, 999);
-    return await db.delete(
-      'pedidos',
-      where: 'fecha BETWEEN ? AND ?',
-      whereArgs: [inicio.toIso8601String(), fin.toIso8601String()],
-    );
+    return await db.transaction((txn) async {
+      final hoy = DateTime.now();
+      final inicio = DateTime(hoy.year, hoy.month, hoy.day);
+      final fin = DateTime(hoy.year, hoy.month, hoy.day, 23, 59, 59, 999);
+      return await txn.delete(
+        'pedidos',
+        where: 'fecha BETWEEN ? AND ?',
+        whereArgs: [inicio.toIso8601String(), fin.toIso8601String()],
+      );
+    });
   }
 }
