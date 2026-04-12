@@ -12,6 +12,7 @@ import 'core/database/db_helper.dart';
 import 'services/printer/printer_service.dart';
 import 'services/supabase_sync_service.dart';
 import 'app_router.dart';
+import 'injection/container.dart';
 
 void _installGlobalErrorHandlers() {
   FlutterError.onError = (FlutterErrorDetails details) {
@@ -31,11 +32,11 @@ void _installGlobalErrorHandlers() {
 }
 
 void main() {
-  WidgetsFlutterBinding.ensureInitialized();
   _installGlobalErrorHandlers();
 
   runZonedGuarded(
     () {
+      WidgetsFlutterBinding.ensureInitialized();
       unawaited(_bootstrapApp());
     },
     (Object error, StackTrace stack) {
@@ -143,6 +144,9 @@ Future<void> _bootstrapApp() async {
     } catch (e) {
       debugPrint('Error al inicializar base de datos: $e');
     }
+
+    // Iniciar observer de stock del menú
+    di.insumoMenuService.iniciar();
 
     SupabaseSyncService.syncDailyReportsInBackground().catchError(
       (Object e, StackTrace st) {

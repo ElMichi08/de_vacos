@@ -197,10 +197,10 @@ class ProductoSeleccionado {
       final acompanantesData = map['acompanantes'] as List;
       acompanantesList =
           acompanantesData
-              .where((a) => a is Map)
+              .whereType<Map>()
               .map(
                 (a) => AcompananteSeleccionado.fromMap(
-                  (a as Map).cast<String, dynamic>(),
+                  a.cast<String, dynamic>(),
                 ),
               )
               .toList();

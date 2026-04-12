@@ -1,13 +1,18 @@
+import 'package:sqflite_common_ffi/sqflite_ffi.dart';
 import '../core/database/db_helper.dart';
 import '../models/receta_detalle.dart';
 
 /// Servicio para recetas por producto (insumos y cantidades)
 class RecetaService {
-  /// Obtiene la receta de un producto: lista de líneas (insumo_id, cantidad)
-  static Future<List<RecetaDetalle>> obtenerPorProducto(int productoId) async {
+  /// Obtiene la receta de un producto: lista de líneas (insumo_id, cantidad).
+  /// Si se provee [txn], usa esa transacción para evitar deadlocks.
+  static Future<List<RecetaDetalle>> obtenerPorProducto(
+    int productoId, {
+    DatabaseExecutor? txn,
+  }) async {
     try {
-      final db = await DBHelper.db;
-      final maps = await db.query(
+      final executor = txn ?? await DBHelper.db;
+      final maps = await executor.query(
         'receta_detalle',
         where: 'producto_id = ?',
         whereArgs: [productoId],

@@ -1,11 +1,14 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_slidable/flutter_slidable.dart';
 import '../models/pedido.dart';
 import '../models/producto.dart';
 import '../models/producto_variante.dart';
 import '../models/producto_seleccionado.dart';
+import '../models/enums.dart';
 import '../core/constants/app_colors.dart';
 import '../core/constants/app_constants.dart';
+import 'order_form_header.dart';
+import 'order_form_product_list.dart';
+import 'order_form_payment_section.dart';
 
 class OrderFormWidget extends StatefulWidget {
   final List<Producto> productos;
@@ -28,7 +31,7 @@ class _OrderFormWidgetState extends State<OrderFormWidget> {
   final _clienteController = TextEditingController();
   final _celularController = TextEditingController();
   final _notasController = TextEditingController();
-  String _metodoPago = 'Efectivo';
+  PaymentMethod _metodoPago = PaymentMethod.efectivo;
   int _envasesLlevar = 0;
   // Lista de instancias de productos seleccionados
   // Permite múltiples instancias del mismo producto con diferentes configuraciones
@@ -997,10 +1000,10 @@ class _OrderFormWidgetState extends State<OrderFormWidget> {
       metodoPago: _metodoPago,
       estado:
           widget.pedido?.estado ??
-          'En preparación', // Mantener estado si es edición
+          OrderStatus.enPreparacion, // Mantener estado si es edición
       estadoPago:
           widget.pedido?.estadoPago ??
-          'Pendiente', // Mantener estado de pago si es edición
+          PaymentStatus.pendiente, // Mantener estado de pago si es edición
       productos: _obtenerProductosLista(),
       fecha:
           widget.pedido?.fecha ??
@@ -1132,569 +1135,39 @@ class _OrderFormWidgetState extends State<OrderFormWidget> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Campos de cliente
-                  TextFormField(
-                    controller: _clienteController,
-                    decoration: InputDecoration(
-                      labelText: 'Nombre del cliente',
-                      labelStyle: const TextStyle(color: Colors.white70),
-                      filled: true,
-                      fillColor: AppColors.cardBackground,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(
-                          AppConstants.borderRadius,
-                        ),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(
-                          AppConstants.borderRadius,
-                        ),
-                        borderSide: const BorderSide(color: Colors.white24),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(
-                          AppConstants.borderRadius,
-                        ),
-                        borderSide: BorderSide(color: AppColors.accent),
-                      ),
-                    ),
-                    style: const TextStyle(color: Colors.white),
-                    validator: (value) {
-                      if (value == null || value.trim().isEmpty) {
-                        return 'El nombre del cliente es obligatorio';
-                      }
-                      return null;
+                  OrderFormHeader(
+                    clienteController: _clienteController,
+                    celularController: _celularController,
+                    notasController: _notasController,
+                    metodoPago: _metodoPago,
+                    onMetodoPagoChanged: (value) {
+                      setState(() {
+                        _metodoPago = value;
+                      });
                     },
+                    envasesLlevar: _envasesLlevar,
+                    onEnvasesLlevarChanged: (value) {
+                      setState(() {
+                        _envasesLlevar = value;
+                      });
+                    },
+                    onAddProduct: _mostrarSelectorProductos,
                   ),
-                  const SizedBox(height: AppConstants.spacingMedium),
-
-                  TextFormField(
-                    controller: _celularController,
-                    decoration: InputDecoration(
-                      labelText: 'Celular (opcional)',
-                      labelStyle: const TextStyle(color: Colors.white70),
-                      filled: true,
-                      fillColor: AppColors.cardBackground,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(
-                          AppConstants.borderRadius,
-                        ),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(
-                          AppConstants.borderRadius,
-                        ),
-                        borderSide: const BorderSide(color: Colors.white24),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(
-                          AppConstants.borderRadius,
-                        ),
-                        borderSide: BorderSide(color: AppColors.accent),
-                      ),
-                    ),
-                    style: const TextStyle(color: Colors.white),
-                    keyboardType: TextInputType.phone,
-                    // Celular es opcional, no se valida
+                  OrderFormProductList(
+                    productosSeleccionados: _productosSeleccionados,
+                    onIncrementar: _incrementarCantidadProducto,
+                    onDecrementar: _decrementarCantidadProducto,
+                    onEditar: _editarGrupoProducto,
+                    onEliminar: _eliminarGrupoProducto,
                   ),
-                  const SizedBox(height: AppConstants.spacingMedium),
-
-                  // Método de pago con radio buttons (lado a lado)
-                  const Text(
-                    'Método de pago',
-                    style: TextStyle(color: Colors.white70, fontSize: 14),
-                  ),
-                  const SizedBox(height: AppConstants.spacingSmall),
-                  Row(
-                    children: [
-                      Expanded(
-                        // ignore: deprecated_member_use - TODO: Migrar a RadioGroup cuando Flutter lo soporte
-                        child: RadioListTile<String>(
-                          title: const Text(
-                            'Efectivo',
-                            style: TextStyle(color: Colors.white, fontSize: 14),
-                          ),
-                          value: 'Efectivo',
-                          // ignore: deprecated_member_use
-                          groupValue: _metodoPago,
-                          // ignore: deprecated_member_use
-                          onChanged: (value) {
-                            setState(() {
-                              _metodoPago = value!;
-                            });
-                          },
-                          activeColor: AppColors.accent,
-                          contentPadding: EdgeInsets.zero,
-                        ),
-                      ),
-                      Expanded(
-                        // ignore: deprecated_member_use - TODO: Migrar a RadioGroup cuando Flutter lo soporte
-                        child: RadioListTile<String>(
-                          title: const Text(
-                            'Transferencia',
-                            style: TextStyle(color: Colors.white, fontSize: 14),
-                          ),
-                          value: 'Transferencia',
-                          // ignore: deprecated_member_use
-                          groupValue: _metodoPago,
-                          // ignore: deprecated_member_use
-                          onChanged: (value) {
-                            setState(() {
-                              _metodoPago = value!;
-                            });
-                          },
-                          activeColor: AppColors.accent,
-                          contentPadding: EdgeInsets.zero,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppConstants.spacingMedium),
-
-                  // Envases a llevar
-                  Row(
-                    children: [
-                      const Text(
-                        'Envases a llevar:',
-                        style: TextStyle(color: Colors.white70, fontSize: 16),
-                      ),
-                      const SizedBox(width: 16),
-                      IconButton(
-                        icon: const Icon(Icons.remove, color: Colors.white),
-                        onPressed:
-                            _envasesLlevar > 0
-                                ? () => setState(() => _envasesLlevar--)
-                                : null,
-                      ),
-                      Text(
-                        '$_envasesLlevar',
-                        style: const TextStyle(
-                          color: Colors.white,
-                          fontSize: 18,
-                          fontWeight: FontWeight.bold,
-                        ),
-                      ),
-                      IconButton(
-                        icon: const Icon(Icons.add, color: Colors.white),
-                        onPressed: () => setState(() => _envasesLlevar++),
-                      ),
-                      const Spacer(),
-                      Text(
-                        '\$0.25 c/u',
-                        style: const TextStyle(
-                          color: AppColors.price,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: AppConstants.spacingMedium),
-
-                  // Notas
-                  TextFormField(
-                    controller: _notasController,
-                    decoration: InputDecoration(
-                      labelText: 'Notas (opcional)',
-                      labelStyle: const TextStyle(color: Colors.white70),
-                      filled: true,
-                      fillColor: AppColors.cardBackground,
-                      border: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(
-                          AppConstants.borderRadius,
-                        ),
-                      ),
-                      enabledBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(
-                          AppConstants.borderRadius,
-                        ),
-                        borderSide: const BorderSide(color: Colors.white24),
-                      ),
-                      focusedBorder: OutlineInputBorder(
-                        borderRadius: BorderRadius.circular(
-                          AppConstants.borderRadius,
-                        ),
-                        borderSide: BorderSide(color: AppColors.accent),
-                      ),
-                    ),
-                    style: const TextStyle(color: Colors.white),
-                    maxLines: 3,
-                  ),
-                  const SizedBox(height: AppConstants.spacingLarge),
-
-                  // Botón agregar producto
-                  ElevatedButton.icon(
-                    onPressed: _mostrarSelectorProductos,
-                    icon: const Icon(Icons.add),
-                    label: const Text('Agregar producto'),
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.primary,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(
-                          AppConstants.borderRadius,
-                        ),
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: AppConstants.spacingMedium),
-
-                  // Lista de productos seleccionados (agrupados por configuración)
-                  if (_productosSeleccionados.isEmpty)
-                    const Padding(
-                      padding: EdgeInsets.all(AppConstants.paddingLarge),
-                      child: Center(
-                        child: Text(
-                          'Carrito vacío',
-                          style: TextStyle(color: Colors.white54, fontSize: 16),
-                        ),
-                      ),
-                    )
-                  else
-                    ..._obtenerProductosAgrupados().entries.map((entry) {
-                      final claveAgrupacion = entry.key;
-                      final grupo = entry.value;
-                      final productoSeleccionado =
-                          grupo['producto'] as ProductoSeleccionado;
-                      final cantidad = grupo['cantidad'] as int;
-
-                      return Padding(
-                        padding: const EdgeInsets.only(
-                          bottom: AppConstants.spacingSmall,
-                        ),
-                        child: Slidable(
-                          key: ValueKey<String>(claveAgrupacion),
-                          endActionPane: ActionPane(
-                            motion: const DrawerMotion(),
-                            extentRatio: 0.25,
-                            children: [
-                              SlidableAction(
-                                onPressed:
-                                    (context) =>
-                                        _eliminarGrupoProducto(claveAgrupacion),
-                                backgroundColor: const Color(0xFFC62828),
-                                foregroundColor: Colors.white,
-                                icon: Icons.delete_outline,
-                                borderRadius: const BorderRadius.only(
-                                  topRight: Radius.circular(
-                                    AppConstants.borderRadius,
-                                  ),
-                                  bottomRight: Radius.circular(
-                                    AppConstants.borderRadius,
-                                  ),
-                                ),
-                                flex: 1,
-                              ),
-                            ],
-                          ),
-                          child: Card(
-                            color: AppColors.cardBackground,
-                            margin: EdgeInsets.zero,
-                            shape: RoundedRectangleBorder(
-                              borderRadius: const BorderRadius.only(
-                                topLeft: Radius.circular(
-                                  AppConstants.borderRadius,
-                                ),
-                                bottomLeft: Radius.circular(
-                                  AppConstants.borderRadius,
-                                ),
-                              ),
-                            ),
-                            child: InkWell(
-                              onTap:
-                                  () => _editarGrupoProducto(claveAgrupacion),
-                              borderRadius: const BorderRadius.only(
-                                topLeft: Radius.circular(
-                                  AppConstants.borderRadius,
-                                ),
-                                bottomLeft: Radius.circular(
-                                  AppConstants.borderRadius,
-                                ),
-                              ),
-                              child: Padding(
-                                padding: const EdgeInsets.all(
-                                  AppConstants.paddingMedium,
-                                ),
-                                child: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        Icon(
-                                          Icons.restaurant,
-                                          color: AppColors.accent,
-                                          size: 20,
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Expanded(
-                                          child: Row(
-                                            children: [
-                                              Text(
-                                                productoSeleccionado
-                                                    .nombreProducto,
-                                                style: const TextStyle(
-                                                  color: Colors.white,
-                                                  fontWeight: FontWeight.bold,
-                                                  fontSize: 16,
-                                                ),
-                                              ),
-                                              if (cantidad > 1) ...[
-                                                const SizedBox(width: 8),
-                                                Container(
-                                                  padding:
-                                                      const EdgeInsets.symmetric(
-                                                        horizontal: 8,
-                                                        vertical: 2,
-                                                      ),
-                                                  decoration: BoxDecoration(
-                                                    color: AppColors.accent
-                                                        .withValues(alpha: 0.2),
-                                                    borderRadius:
-                                                        BorderRadius.circular(
-                                                          12,
-                                                        ),
-                                                  ),
-                                                  child: Text(
-                                                    'x$cantidad',
-                                                    style: TextStyle(
-                                                      color: AppColors.accent,
-                                                      fontSize: 12,
-                                                      fontWeight:
-                                                          FontWeight.bold,
-                                                    ),
-                                                  ),
-                                                ),
-                                              ],
-                                            ],
-                                          ),
-                                        ),
-                                        Text(
-                                          '\$${(productoSeleccionado.precioUnitario * cantidad).toStringAsFixed(2)}',
-                                          style: const TextStyle(
-                                            color: AppColors.price,
-                                            fontWeight: FontWeight.bold,
-                                            fontSize: 16,
-                                          ),
-                                        ),
-                                      ],
-                                    ),
-                                    if (productoSeleccionado.varianteNombre !=
-                                            null ||
-                                        productoSeleccionado
-                                            .acompanantes
-                                            .isNotEmpty ||
-                                        productoSeleccionado
-                                            .extrasNombres
-                                            .isNotEmpty) ...[
-                                      const SizedBox(height: 8),
-                                      if (productoSeleccionado.varianteNombre !=
-                                          null)
-                                        Padding(
-                                          padding: const EdgeInsets.only(
-                                            bottom: 4,
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              Icon(
-                                                Icons.straighten,
-                                                size: 14,
-                                                color: Colors.white54,
-                                              ),
-                                              const SizedBox(width: 6),
-                                              Text(
-                                                productoSeleccionado
-                                                    .varianteNombre!,
-                                                style: const TextStyle(
-                                                  color: Colors.white70,
-                                                  fontSize: 12,
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      if (productoSeleccionado
-                                          .acompanantes
-                                          .isNotEmpty)
-                                        Padding(
-                                          padding: const EdgeInsets.only(
-                                            bottom: 4,
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              Icon(
-                                                Icons.restaurant_menu,
-                                                size: 14,
-                                                color: Colors.white54,
-                                              ),
-                                              const SizedBox(width: 6),
-                                              Expanded(
-                                                child: Text(
-                                                  productoSeleccionado
-                                                      .acompanantes
-                                                      .map((a) => a.nombre)
-                                                      .join(', '),
-                                                  style: const TextStyle(
-                                                    color: Colors.white70,
-                                                    fontSize: 12,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                      if (productoSeleccionado
-                                          .extrasNombres
-                                          .isNotEmpty)
-                                        Padding(
-                                          padding: const EdgeInsets.only(
-                                            bottom: 4,
-                                          ),
-                                          child: Row(
-                                            children: [
-                                              Icon(
-                                                Icons.add_circle_outline,
-                                                size: 14,
-                                                color: Colors.white54,
-                                              ),
-                                              const SizedBox(width: 6),
-                                              Expanded(
-                                                child: Text(
-                                                  productoSeleccionado
-                                                      .extrasNombres
-                                                      .join(', '),
-                                                  style: const TextStyle(
-                                                    color: Colors.white70,
-                                                    fontSize: 12,
-                                                  ),
-                                                ),
-                                              ),
-                                            ],
-                                          ),
-                                        ),
-                                    ],
-                                    const SizedBox(height: 8),
-                                    // Contador de cantidad
-                                    Row(
-                                      mainAxisAlignment: MainAxisAlignment.end,
-                                      children: [
-                                        IconButton(
-                                          icon: const Icon(
-                                            Icons.remove,
-                                            color: Colors.white,
-                                            size: 20,
-                                          ),
-                                          onPressed:
-                                              () =>
-                                                  _decrementarCantidadProducto(
-                                                    claveAgrupacion,
-                                                  ),
-                                        ),
-                                        Container(
-                                          padding: const EdgeInsets.symmetric(
-                                            horizontal: 16,
-                                            vertical: 4,
-                                          ),
-                                          decoration: BoxDecoration(
-                                            color: AppColors.background,
-                                            borderRadius: BorderRadius.circular(
-                                              8,
-                                            ),
-                                          ),
-                                          child: Text(
-                                            '$cantidad',
-                                            style: const TextStyle(
-                                              color: Colors.white,
-                                              fontSize: 16,
-                                              fontWeight: FontWeight.bold,
-                                            ),
-                                          ),
-                                        ),
-                                        IconButton(
-                                          icon: const Icon(
-                                            Icons.add,
-                                            color: Colors.white,
-                                            size: 20,
-                                          ),
-                                          onPressed:
-                                              () =>
-                                                  _incrementarCantidadProducto(
-                                                    claveAgrupacion,
-                                                  ),
-                                        ),
-                                      ],
-                                    ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ),
-                      );
-                    }),
                 ],
               ),
             ),
           ),
-
-          // Resumen y botón guardar
-          Container(
-            padding: const EdgeInsets.all(AppConstants.paddingMedium),
-            decoration: BoxDecoration(
-              color: AppColors.cardBackground,
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.3),
-                  blurRadius: 10,
-                  offset: const Offset(0, -5),
-                ),
-              ],
-            ),
-            child: Column(
-              children: [
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                  children: [
-                    const Text(
-                      'Total:',
-                      style: TextStyle(color: Colors.white70, fontSize: 18),
-                    ),
-                    Text(
-                      '\$${total.toStringAsFixed(2)}',
-                      style: const TextStyle(
-                        color: AppColors.price,
-                        fontSize: 24,
-                        fontWeight: FontWeight.bold,
-                      ),
-                    ),
-                  ],
-                ),
-                const SizedBox(height: AppConstants.spacingMedium),
-                SizedBox(
-                  width: double.infinity,
-                  child: ElevatedButton(
-                    onPressed: _guardar,
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: AppColors.successDark,
-                      padding: const EdgeInsets.symmetric(vertical: 16),
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.circular(
-                          AppConstants.borderRadius,
-                        ),
-                      ),
-                    ),
-                    child: Text(
-                      widget.pedido != null
-                          ? 'Actualizar Pedido'
-                          : 'Guardar Pedido',
-                      style: const TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.white,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
+          OrderFormPaymentSection(
+            total: total,
+            isEditing: widget.pedido != null,
+            onSave: _guardar,
           ),
         ],
       ),

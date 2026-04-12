@@ -9,7 +9,7 @@ import '../../models/pedido.dart';
 
 class DBHelper {
   static Database? _db;
-  static const int _versionDb = 7; // Imagen opcional en productos
+  static const int _versionDb = 11; // v11: pagos JSON (historial multi-pago)
   static bool _initialized = false;
 
   static String? _testDbPathOverride;
@@ -153,6 +153,16 @@ class DBHelper {
               'type': 'TEXT',
               'default': 'NULL',
             },
+            {
+              'name': 'productosCobrados',
+              'type': 'TEXT',
+              'default': 'NULL',
+            },
+            {
+              'name': 'pagos',
+              'type': 'TEXT',
+              'default': 'NULL',
+            },
           ]);
 
           await _ensureTableColumns(db, 'productos', [
@@ -220,7 +230,9 @@ class DBHelper {
         envasesLlevar INTEGER DEFAULT 0,
         notas TEXT DEFAULT '',
         cancelado INTEGER DEFAULT 0,
-        fotoTransferenciaPath TEXT DEFAULT NULL
+        fotoTransferenciaPath TEXT DEFAULT NULL,
+        productosCobrados TEXT DEFAULT NULL,
+        pagos TEXT DEFAULT NULL
       )
     ''');
 
@@ -245,6 +257,18 @@ class DBHelper {
         cantidadActual REAL NOT NULL DEFAULT 0,
         cantidadMinima REAL NOT NULL DEFAULT 0,
         costoUnitario REAL DEFAULT NULL,
+        tipo TEXT NOT NULL DEFAULT 'proteina',
+        precioExtra REAL NOT NULL DEFAULT 0.0,
+        cancelado INTEGER DEFAULT 0
+      )
+    ''');
+
+    // Tabla modalidades — contextos de precio configurables (v9)
+    await db.execute('''
+      CREATE TABLE modalidades(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre TEXT NOT NULL,
+        modificador REAL NOT NULL DEFAULT 0.0,
         cancelado INTEGER DEFAULT 0
       )
     ''');
@@ -260,6 +284,20 @@ class DBHelper {
         FOREIGN KEY (insumo_id) REFERENCES insumos(id)
       )
     ''');
+
+    // Tabla menu_items — ítems configurables del menú (v8)
+    await db.execute('''
+      CREATE TABLE menu_items(
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        nombre TEXT NOT NULL,
+        tiers TEXT NOT NULL DEFAULT '[]',
+        proteinas TEXT NOT NULL DEFAULT '[]',
+        acompanantes TEXT NOT NULL DEFAULT '[]',
+        extras TEXT NOT NULL DEFAULT '[]',
+        modificadores TEXT NOT NULL DEFAULT '{}',
+        cancelado INTEGER DEFAULT 0
+      )
+    ''');
   }
 
   static Future<void> _onUpgrade(
@@ -267,6 +305,64 @@ class DBHelper {
     int oldVersion,
     int newVersion,
   ) async {
+    // Migración a versión 11: pagos JSON (historial multi-pago)
+    if (oldVersion < 11) {
+      await addColumnIfNotExists(
+        db,
+        'pedidos',
+        'pagos',
+        'TEXT',
+        defaultValue: 'NULL',
+      );
+    }
+    // Migración a versión 10: productosCobrados snapshot en pedidos
+    if (oldVersion < 10) {
+      await addColumnIfNotExists(
+        db,
+        'pedidos',
+        'productosCobrados',
+        'TEXT',
+        defaultValue: 'NULL',
+      );
+    }
+    // Migración a versión 9: tipo/precioExtra en insumos + tabla modalidades
+    if (oldVersion < 9) {
+      await addColumnIfNotExists(
+        db,
+        'insumos',
+        'tipo',
+        "TEXT NOT NULL DEFAULT 'proteina'",
+      );
+      await addColumnIfNotExists(
+        db,
+        'insumos',
+        'precioExtra',
+        'REAL NOT NULL DEFAULT 0.0',
+      );
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS modalidades(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          nombre TEXT NOT NULL,
+          modificador REAL NOT NULL DEFAULT 0.0,
+          cancelado INTEGER DEFAULT 0
+        )
+      ''');
+    }
+    // Migración a versión 8: tabla menu_items
+    if (oldVersion < 8) {
+      await db.execute('''
+        CREATE TABLE IF NOT EXISTS menu_items(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          nombre TEXT NOT NULL,
+          tiers TEXT NOT NULL DEFAULT '[]',
+          proteinas TEXT NOT NULL DEFAULT '[]',
+          acompanantes TEXT NOT NULL DEFAULT '[]',
+          extras TEXT NOT NULL DEFAULT '[]',
+          modificadores TEXT NOT NULL DEFAULT '{}',
+          cancelado INTEGER DEFAULT 0
+        )
+      ''');
+    }
     // Migración a versión 7: imagen opcional en productos
     if (oldVersion < 7) {
       try {

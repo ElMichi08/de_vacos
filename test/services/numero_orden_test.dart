@@ -4,17 +4,18 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as path_utils;
 import 'package:de_vacos/core/database/db_helper.dart';
 import 'package:de_vacos/models/pedido.dart';
+import 'package:de_vacos/models/enums.dart';
 import 'package:de_vacos/services/pedido_service.dart';
 import 'dart:developer' show log;
 
 /// Helper para crear un pedido rápido
-Pedido _pedidoRapido({double total = 10.0, String estadoPago = 'Pendiente'}) {
+Pedido _pedidoRapido({double total = 10.0, PaymentStatus estadoPago = PaymentStatus.pendiente}) {
   return Pedido(
     numeroOrden: 0,
     cliente: 'Test',
     celular: '',
-    metodoPago: 'Efectivo',
-    estado: 'En preparación',
+    metodoPago: PaymentMethod.efectivo,
+    estado: OrderStatus.enPreparacion,
     estadoPago: estadoPago,
     productos: [
       {'nombre': 'P', 'cantidad': 1, 'precio': total},
@@ -271,9 +272,9 @@ void main() {
             numeroOrden: 0,
             cliente: 'Test',
             celular: '',
-            metodoPago: 'Efectivo',
-            estado: 'En preparación',
-            estadoPago: 'Pendiente',
+            metodoPago: PaymentMethod.efectivo,
+            estado: OrderStatus.enPreparacion,
+            estadoPago: PaymentStatus.pendiente,
             productos: prods,
             fecha: DateTime.now(),
             total:

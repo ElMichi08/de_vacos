@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../core/constants/app_colors.dart';
 import '../core/constants/app_constants.dart';
 import '../models/pedido.dart';
+import '../models/enums.dart';
 import '../services/pedido_service.dart';
 import '../widgets/back_header_widget.dart';
 
@@ -42,11 +43,13 @@ class _CocinaScreenState extends State<CocinaScreen> {
     });
     try {
       final todos = await PedidoService.obtenerTodos();
-      final enCocina = todos
-          .where((p) =>
-              p.estado == 'En preparación' || p.estado == 'Pendiente')
-          .toList()
-        ..sort((a, b) => b.fecha.compareTo(a.fecha));
+      final enCocina =
+          todos
+              .where(
+                (p) => p.estado == OrderStatus.enPreparacion || p.estadoPago == PaymentStatus.pendiente,
+              )
+              .toList()
+            ..sort((a, b) => b.fecha.compareTo(a.fecha));
       if (mounted) {
         setState(() {
           _pedidos = enCocina;
@@ -68,17 +71,11 @@ class _CocinaScreenState extends State<CocinaScreen> {
     try {
       await PedidoService.actualizarEstado(pedido.id!, 'Despachada');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Pedido #${pedido.numeroOrden} marcado como listo'),
-            backgroundColor: AppColors.success,
-          ),
-        );
         _cargar();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
           SnackBar(
             content: Text('Error: ${e.toString()}'),
             backgroundColor: AppColors.error,
@@ -99,9 +96,7 @@ class _CocinaScreenState extends State<CocinaScreen> {
 
   Widget _buildBody() {
     if (_loading && _pedidos.isEmpty) {
-      return Center(
-        child: CircularProgressIndicator(color: AppColors.accent),
-      );
+      return Center(child: CircularProgressIndicator(color: AppColors.accent));
     }
     if (_error != null && _pedidos.isEmpty) {
       return Center(
@@ -121,7 +116,9 @@ class _CocinaScreenState extends State<CocinaScreen> {
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: _cargar,
-              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+              ),
               child: const Text('Reintentar'),
             ),
           ],
@@ -179,7 +176,10 @@ class _CocinaScreenState extends State<CocinaScreen> {
             Row(
               children: [
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
                   decoration: BoxDecoration(
                     color: AppColors.accent.withValues(alpha: 0.2),
                     borderRadius: BorderRadius.circular(8),
@@ -205,11 +205,8 @@ class _CocinaScreenState extends State<CocinaScreen> {
                   ),
                 ),
                 Text(
-                  pedido.estado,
-                  style: TextStyle(
-                    color: Colors.white70,
-                    fontSize: 14,
-                  ),
+                  pedido.estado.displayName,
+                  style: TextStyle(color: Colors.white70, fontSize: 14),
                 ),
               ],
             ),
@@ -236,7 +233,9 @@ class _CocinaScreenState extends State<CocinaScreen> {
                   backgroundColor: AppColors.success,
                   padding: const EdgeInsets.symmetric(vertical: 12),
                   shape: RoundedRectangleBorder(
-                    borderRadius: BorderRadius.circular(AppConstants.borderRadius),
+                    borderRadius: BorderRadius.circular(
+                      AppConstants.borderRadius,
+                    ),
                   ),
                 ),
               ),

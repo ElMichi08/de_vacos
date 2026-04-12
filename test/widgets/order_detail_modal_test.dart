@@ -35,12 +35,12 @@ void main() {
       expect(find.byType(OrderDetailModal), findsOneWidget);
     });
 
-    testWidgets('muestra título Detalle del Pedido', (tester) async {
+    testWidgets('muestra header de ticket', (tester) async {
       await tester.pumpWidget(
         MaterialApp(home: Scaffold(body: OrderDetailModal(pedido: testPedido))),
       );
 
-      expect(find.text('Detalle del Pedido'), findsOneWidget);
+      expect(find.text('TICKET DE PEDIDO'), findsOneWidget);
     });
 
     testWidgets('muestra número de orden', (tester) async {
@@ -64,7 +64,7 @@ void main() {
         MaterialApp(home: Scaffold(body: OrderDetailModal(pedido: testPedido))),
       );
 
-      expect(find.text('Método de pago:'), findsOneWidget);
+      expect(find.text('Pago'), findsOneWidget);
       expect(find.text('Efectivo'), findsOneWidget);
     });
 
@@ -73,7 +73,7 @@ void main() {
         MaterialApp(home: Scaffold(body: OrderDetailModal(pedido: testPedido))),
       );
 
-      expect(find.text('Estado:'), findsOneWidget);
+      expect(find.text('Estado'), findsOneWidget);
       expect(find.text('Despachada'), findsOneWidget);
     });
 
@@ -82,7 +82,7 @@ void main() {
         MaterialApp(home: Scaffold(body: OrderDetailModal(pedido: testPedido))),
       );
 
-      expect(find.byIcon(Icons.print), findsOneWidget);
+      expect(find.byIcon(Icons.print_outlined), findsOneWidget);
     });
 
     testWidgets('tiene botón de cerrar', (tester) async {

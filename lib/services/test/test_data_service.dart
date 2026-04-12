@@ -185,7 +185,7 @@ class TestDataService {
   static Map<String, int> _contarPorEstado(List<Pedido> pedidos) {
     final conteo = <String, int>{};
     for (final pedido in pedidos) {
-      conteo[pedido.estado] = (conteo[pedido.estado] ?? 0) + 1;
+      conteo[pedido.estado.displayName] = (conteo[pedido.estado.displayName] ?? 0) + 1;
     }
     return conteo;
   }
@@ -193,7 +193,7 @@ class TestDataService {
   static Map<String, int> _contarPorMetodoPago(List<Pedido> pedidos) {
     final conteo = <String, int>{};
     for (final pedido in pedidos) {
-      conteo[pedido.metodoPago] = (conteo[pedido.metodoPago] ?? 0) + 1;
+      conteo[pedido.metodoPago.displayName] = (conteo[pedido.metodoPago.displayName] ?? 0) + 1;
     }
     return conteo;
   }

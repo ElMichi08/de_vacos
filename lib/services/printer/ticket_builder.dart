@@ -300,6 +300,8 @@ class TicketBuilder {
     final normalHeight = is56mm ? PosTextSize.size1 : PosTextSize.size2;
     final smallHeight = is56mm ? PosTextSize.size1 : PosTextSize.size1;
     final totalHeight = is56mm ? PosTextSize.size1 : PosTextSize.size2;
+    // fontB es comprimida; en 80mm usar fontA para mejor legibilidad
+    final bodyFont = is56mm ? PosFontType.fontB : PosFontType.fontA;
 
     // Logo (centrado)
     final logo = await _loadLogo(paperSize: paperSize);
@@ -343,7 +345,7 @@ class TicketBuilder {
       bytes += generator.text(
         'Factura: $facturaId',
         styles: PosStyles(
-          fontType: PosFontType.fontB,
+          fontType: bodyFont,
           width: PosTextSize.size1,
           height: normalHeight,
           bold: false,
@@ -356,7 +358,7 @@ class TicketBuilder {
     bytes += generator.text(
       TicketConstants.truncateToWidth(clienteText, is56mm),
       styles: PosStyles(
-        fontType: PosFontType.fontB,
+        fontType: bodyFont,
         width: PosTextSize.size1,
         height: normalHeight,
         bold: false,
@@ -369,7 +371,7 @@ class TicketBuilder {
     bytes += generator.text(
       'Fecha: $fechaStr $horaStr',
       styles: PosStyles(
-        fontType: PosFontType.fontB,
+        fontType: bodyFont,
         width: PosTextSize.size1,
         height: normalHeight,
         bold: false,
@@ -377,11 +379,11 @@ class TicketBuilder {
     );
 
     // Pago (normalizado a ASCII)
-    final pagoText = 'Pago: ${normalizeToAscii(pedido.metodoPago)}';
+    final pagoText = 'Pago: ${normalizeToAscii(pedido.metodoPago.toString())}';
     bytes += generator.text(
       TicketConstants.truncateToWidth(pagoText, is56mm),
       styles: PosStyles(
-        fontType: PosFontType.fontB,
+        fontType: bodyFont,
         width: PosTextSize.size1,
         height: normalHeight,
         bold: false,
@@ -417,7 +419,7 @@ class TicketBuilder {
       bytes += generator.text(
         TicketFormatter.formatearNombreProducto(nombreProducto, is56mm: is56mm),
         styles: PosStyles(
-          fontType: PosFontType.fontB,
+          fontType: bodyFont,
           width: PosTextSize.size1,
           height: normalHeight,
           bold: true,
@@ -433,7 +435,7 @@ class TicketBuilder {
         bytes += generator.text(
           'Det: $detalleStr',
           styles: PosStyles(
-            fontType: PosFontType.fontB,
+            fontType: bodyFont,
             width: PosTextSize.size1,
             height: smallHeight,
             bold: false,
@@ -451,7 +453,7 @@ class TicketBuilder {
         cantidadTexto,
         styles: PosStyles(
           align: is56mm ? PosAlign.left : PosAlign.right,
-          fontType: PosFontType.fontB,
+          fontType: bodyFont,
           width: PosTextSize.size1,
           height: smallHeight,
           bold: false,
@@ -471,7 +473,7 @@ class TicketBuilder {
       bytes += generator.text(
         textoEnvases,
         styles: PosStyles(
-          fontType: PosFontType.fontB,
+          fontType: bodyFont,
           width: PosTextSize.size1,
           height: smallHeight,
           bold: false,
@@ -485,7 +487,7 @@ class TicketBuilder {
       bytes += generator.text(
         TicketConstants.truncateToWidth(notasText, is56mm),
         styles: PosStyles(
-          fontType: PosFontType.fontB,
+          fontType: bodyFont,
           width: PosTextSize.size1,
           height: smallHeight,
           bold: false,

@@ -7,15 +7,19 @@ class InsumoRepository implements IInsumoRepository {
   Future<Insumo> crearInsumo(Insumo insumo) async {
     final db = await DBHelper.db;
     final id = await db.insert('insumos', insumo.toMap());
-    return Insumo(
-      id: id,
-      nombre: insumo.nombre,
-      unidadMedida: insumo.unidadMedida,
-      cantidadActual: insumo.cantidadActual,
-      cantidadMinima: insumo.cantidadMinima,
-      costoUnitario: insumo.costoUnitario,
-      cancelado: false,
+    return insumo.copyWith(id: id, cancelado: false);
+  }
+
+  @override
+  Future<List<Insumo>> obtenerPorTipo(InsumoTipo tipo) async {
+    final db = await DBHelper.db;
+    final maps = await db.query(
+      'insumos',
+      where: 'cancelado = 0 AND tipo = ?',
+      whereArgs: [tipo.valor],
+      orderBy: 'nombre ASC',
     );
+    return maps.map(Insumo.fromMap).toList();
   }
 
   @override
@@ -44,8 +48,9 @@ class InsumoRepository implements IInsumoRepository {
 
   @override
   Future<void> actualizarInsumo(Insumo insumo) async {
-    if (insumo.id == null)
+    if (insumo.id == null) {
       throw Exception('El insumo debe tener id para actualizar');
+    }
     final db = await DBHelper.db;
     await db.update(
       'insumos',

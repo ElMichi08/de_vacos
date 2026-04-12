@@ -1,3 +1,14 @@
+/// Tipos de insumo según su rol en el menú.
+enum InsumoTipo {
+  proteina,
+  acompanante;
+
+  String get valor => name; // 'proteina' | 'acompanante'
+
+  static InsumoTipo fromString(String? s) =>
+      s == 'acompanante' ? InsumoTipo.acompanante : InsumoTipo.proteina;
+}
+
 /// Modelo de Insumo para inventario
 class Insumo {
   final int? id;
@@ -8,6 +19,12 @@ class Insumo {
   final double? costoUnitario;
   final bool cancelado;
 
+  /// Rol del insumo: proteina (con mínimo) o acompanante (sin mínimo).
+  final InsumoTipo tipo;
+
+  /// Precio cuando se usa como extra en un plato (más allá del límite gratuito).
+  final double precioExtra;
+
   Insumo({
     this.id,
     required this.nombre,
@@ -16,6 +33,8 @@ class Insumo {
     this.cantidadMinima = 0,
     this.costoUnitario,
     this.cancelado = false,
+    this.tipo = InsumoTipo.proteina,
+    this.precioExtra = 0.0,
   });
 
   Map<String, dynamic> toMap() {
@@ -27,6 +46,8 @@ class Insumo {
       'cantidadMinima': cantidadMinima,
       'costoUnitario': costoUnitario,
       'cancelado': cancelado ? 1 : 0,
+      'tipo': tipo.valor,
+      'precioExtra': precioExtra,
     };
   }
 
@@ -44,6 +65,8 @@ class Insumo {
                   : double.tryParse(map['costoUnitario'].toString()))
               : null,
       cancelado: (map['cancelado'] ?? 0) == 1,
+      tipo: InsumoTipo.fromString(map['tipo']?.toString()),
+      precioExtra: (map['precioExtra'] as num?)?.toDouble() ?? 0.0,
     );
   }
 
@@ -51,12 +74,15 @@ class Insumo {
 
   String? validar() {
     if (nombre.trim().isEmpty) return 'El nombre es obligatorio';
-    if (unidadMedida.trim().isEmpty)
+    if (unidadMedida.trim().isEmpty) {
       return 'La unidad de medida es obligatoria';
-    if (cantidadActual.isNegative)
+    }
+    if (cantidadActual.isNegative) {
       return 'La cantidad actual no puede ser negativa';
-    if (cantidadMinima.isNegative)
+    }
+    if (cantidadMinima.isNegative) {
       return 'La cantidad mínima no puede ser negativa';
+    }
     if (costoUnitario != null && costoUnitario! < 0) {
       return 'El costo unitario no puede ser negativo';
     }
@@ -71,6 +97,8 @@ class Insumo {
     double? cantidadMinima,
     double? costoUnitario,
     bool? cancelado,
+    InsumoTipo? tipo,
+    double? precioExtra,
   }) {
     return Insumo(
       id: id ?? this.id,
@@ -80,6 +108,8 @@ class Insumo {
       cantidadMinima: cantidadMinima ?? this.cantidadMinima,
       costoUnitario: costoUnitario ?? this.costoUnitario,
       cancelado: cancelado ?? this.cancelado,
+      tipo: tipo ?? this.tipo,
+      precioExtra: precioExtra ?? this.precioExtra,
     );
   }
 }

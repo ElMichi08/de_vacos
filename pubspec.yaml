@@ -1,6 +1,6 @@
 name: de_vacos
 description: "Aplicación de gestión para restaurante De Vacos Urban Grill"
-version: 2.9.6+1
+version: 2.9.7+1
 
 environment:
   sdk: ^3.7.2

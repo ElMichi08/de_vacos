@@ -4,6 +4,7 @@ import '../core/constants/app_colors.dart';
 import '../core/constants/app_constants.dart';
 import '../services/pedido_service.dart';
 import '../models/pedido.dart';
+import '../models/enums.dart';
 import '../widgets/back_header_widget.dart';
 import '../widgets/info_panel.dart';
 import '../widgets/filterable_info_panel.dart';
@@ -25,7 +26,7 @@ class _ReportScreenState extends State<ReportScreen> {
   String? errorMessage;
   DateTime _fechaInicio = DateTime.now();
   DateTime _fechaFin = DateTime.now();
-  String? _filtroMetodoPago; // null = todos, 'Transferencia' o 'Efectivo'
+  PaymentMethod? _filtroMetodoPago; // null = todos, PaymentMethod.transferencia o PaymentMethod.efectivo
   int _itemsPerPage = 20; // Cantidad de pedidos a mostrar
   int _paginaActual = 1; // Página actual
 
@@ -95,8 +96,8 @@ class _ReportScreenState extends State<ReportScreen> {
         .where(
           (p) =>
               !p.cancelado &&
-              p.estado == 'Cerrados' &&
-              p.estadoPago == 'Cobrado',
+              p.estado == OrderStatus.cerrados &&
+              p.estadoPago == PaymentStatus.cobrado,
         )
         .fold(0.0, (sum, pedido) => sum + pedido.total);
   }
@@ -105,14 +106,26 @@ class _ReportScreenState extends State<ReportScreen> {
     return _obtenerPedidosDelRango().where((p) => !p.cancelado).length;
   }
 
+  /// True si el pedido incluye al menos un pago con [metodo].
+  /// Usa el historial de pagos (multi-pago) o el campo metodoPago como fallback.
+  bool _matchesFiltro(Pedido p, PaymentMethod metodo) {
+    if (p.pagos != null && p.pagos!.isNotEmpty) {
+      return p.pagos!.any((pg) => pg.metodo == metodo);
+    }
+    return p.metodoPago == metodo;
+  }
+
+  /// True si el pedido tiene algún pago por transferencia (para mostrar ícono clickeable).
+  bool _tieneTransferencia(Pedido p) => _matchesFiltro(p, PaymentMethod.transferencia);
+
   int _contarTransferencias() {
     return _obtenerPedidosDelRango()
         .where(
           (p) =>
               !p.cancelado &&
-              p.estado == 'Cerrados' &&
-              p.estadoPago == 'Cobrado' &&
-              p.metodoPago == 'Transferencia',
+              p.estado == OrderStatus.cerrados &&
+              p.estadoPago == PaymentStatus.cobrado &&
+              _matchesFiltro(p, PaymentMethod.transferencia),
         )
         .length;
   }
@@ -122,9 +135,9 @@ class _ReportScreenState extends State<ReportScreen> {
         .where(
           (p) =>
               !p.cancelado &&
-              p.estado == 'Cerrados' &&
-              p.estadoPago == 'Cobrado' &&
-              p.metodoPago == 'Efectivo',
+              p.estado == OrderStatus.cerrados &&
+              p.estadoPago == PaymentStatus.cobrado &&
+              _matchesFiltro(p, PaymentMethod.efectivo),
         )
         .length;
   }
@@ -136,8 +149,8 @@ class _ReportScreenState extends State<ReportScreen> {
             .where(
               (p) =>
                   !p.cancelado &&
-                  p.estado == 'Cerrados' &&
-                  p.estadoPago == 'Cobrado',
+                  p.estado == OrderStatus.cerrados &&
+                  p.estadoPago == PaymentStatus.cobrado,
             )
             .toList();
 
@@ -145,7 +158,7 @@ class _ReportScreenState extends State<ReportScreen> {
     if (_filtroMetodoPago != null) {
       pedidosFiltrados =
           pedidosFiltrados
-              .where((p) => p.metodoPago == _filtroMetodoPago)
+              .where((p) => _matchesFiltro(p, _filtroMetodoPago!))
               .toList();
     }
 
@@ -173,15 +186,15 @@ class _ReportScreenState extends State<ReportScreen> {
             .where(
               (p) =>
                   !p.cancelado &&
-                  p.estado == 'Cerrados' &&
-                  p.estadoPago == 'Cobrado',
+                  p.estado == OrderStatus.cerrados &&
+                  p.estadoPago == PaymentStatus.cobrado,
             )
             .toList();
 
     // Aplicar filtro por método de pago si está activo
     if (_filtroMetodoPago != null) {
       totalPedidos =
-          totalPedidos.where((p) => p.metodoPago == _filtroMetodoPago).toList();
+          totalPedidos.where((p) => _matchesFiltro(p, _filtroMetodoPago!)).toList();
     }
 
     return (totalPedidos.length / _itemsPerPage).ceil();
@@ -246,15 +259,15 @@ class _ReportScreenState extends State<ReportScreen> {
             .where(
               (p) =>
                   !p.cancelado &&
-                  p.estado == 'Cerrados' &&
-                  p.estadoPago == 'Cobrado',
+                  p.estado == OrderStatus.cerrados &&
+                  p.estadoPago == PaymentStatus.cobrado,
             )
             .toList();
 
     if (_filtroMetodoPago != null) {
       totalPedidosFiltrados =
           totalPedidosFiltrados
-              .where((p) => p.metodoPago == _filtroMetodoPago)
+              .where((p) => _matchesFiltro(p, _filtroMetodoPago!))
               .toList();
     }
 
@@ -326,13 +339,13 @@ class _ReportScreenState extends State<ReportScreen> {
                         value: '$transferencias',
                         icon: Icons.account_balance_wallet,
                         color: const Color(0xFF64B5F6), // Azul claro
-                        isSelected: _filtroMetodoPago == 'Transferencia',
+                        isSelected: _filtroMetodoPago == PaymentMethod.transferencia,
                         onTap: () {
                           setState(() {
                             _filtroMetodoPago =
-                                _filtroMetodoPago == 'Transferencia'
+                                _filtroMetodoPago == PaymentMethod.transferencia
                                     ? null
-                                    : 'Transferencia';
+                                    : PaymentMethod.transferencia;
                             _paginaActual =
                                 1; // Resetear a la primera página cuando cambia el filtro
                           });
@@ -346,13 +359,13 @@ class _ReportScreenState extends State<ReportScreen> {
                         value: '$efectivo',
                         icon: Icons.money,
                         color: const Color(0xFF81C784), // Verde claro
-                        isSelected: _filtroMetodoPago == 'Efectivo',
+                        isSelected: _filtroMetodoPago == PaymentMethod.efectivo,
                         onTap: () {
                           setState(() {
                             _filtroMetodoPago =
-                                _filtroMetodoPago == 'Efectivo'
+                                _filtroMetodoPago == PaymentMethod.efectivo
                                     ? null
-                                    : 'Efectivo';
+                                    : PaymentMethod.efectivo;
                             _paginaActual =
                                 1; // Resetear a la primera página cuando cambia el filtro
                           });
@@ -494,8 +507,8 @@ class _ReportScreenState extends State<ReportScreen> {
                                   spacing: 8,
                                   runSpacing: 8,
                                   children: [
-                                    // Botón de método de pago (clickeable si es Transferencia)
-                                    if (pedido.metodoPago == 'Transferencia')
+                                    // Botón de método de pago (clickeable si tiene algún pago por transferencia)
+                                    if (_tieneTransferencia(pedido))
                                       InkWell(
                                         onTap: () {
                                           showDialog(
@@ -611,7 +624,7 @@ class _ReportScreenState extends State<ReportScreen> {
                                           ),
                                           const SizedBox(width: 4),
                                           Text(
-                                            pedido.estado,
+                                            pedido.estado.displayName,
                                             style: const TextStyle(
                                               color: AppColors.success,
                                               fontWeight: FontWeight.bold,

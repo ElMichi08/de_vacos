@@ -9,8 +9,9 @@
     "cardBackground": "#3B2C24"
   },
   "features": [
-    "productos",
+    "menu",
     "pedidos",
+    "insumos",
     "reportes",
     "caja",
     "impresora",

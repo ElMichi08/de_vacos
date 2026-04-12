@@ -99,7 +99,7 @@ class HomeScreen extends StatelessWidget {
     // Lista completa de ítems del menú (orden: productos, pedidos, cocina, insumos, reportes, caja, impresora, pruebas).
     // IDs válidos: productos, pedidos, cocina, insumos, reportes, caja, impresora, pruebas.
     final fullMenu = [
-      _MenuDef(id: 'productos', icon: Icons.restaurant_menu, title: 'Productos', subtitle: 'Gestionar productos del menú', color: AppColors.accent, path: '/productos'),
+      _MenuDef(id: 'menu', icon: Icons.restaurant_menu, title: 'Menú', subtitle: 'Crear y gestionar ítems del menú', color: AppColors.accent, path: '/menu'),
       _MenuDef(id: 'pedidos', icon: Icons.receipt_long, title: 'Pedidos', subtitle: 'Ver y gestionar pedidos', color: AppColors.success, path: '/pedidos'),
       _MenuDef(id: 'cocina', icon: Icons.restaurant, title: 'Cocina (KDS)', subtitle: 'Pedidos en preparación · Marcar listo', color: Colors.deepOrange, path: '/cocina'),
       _MenuDef(id: 'insumos', icon: Icons.inventory_2, title: 'Insumos', subtitle: 'Inventario y recetas', color: Colors.cyan, path: '/insumos'),

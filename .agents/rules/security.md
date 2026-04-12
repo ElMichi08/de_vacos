@@ -29,21 +29,14 @@ Envío en segundo plano (total ventas, pedidos, top 3 productos). Un fallo de en
 
 ---
 
-## OWASP Security Skill
+## Auditorías de seguridad
 
-**Para auditorías de seguridad**, cargar la skill `owasp-security-check`:
+Usar la skill local `security-review` (`.agents/skills/security-review/`):
+- Cubre OWASP Top 10
+- Revisión por confianza (HIGH/MEDIUM/LOW)
+- Referencias por tipo de vulnerabilidad (injection, XSS, auth, crypto, etc.)
 
-```
-Skill: @sergiodxa/agent-skills/owasp-security-check
-```
-
-Esta skill proporciona:
-- 20 reglas de auditoría
-- Cobertura OWASP Top 10
-- Patrones de vulnerabilidad comunes
-- Workflow de remediación
-
-**Aplicar cuando:**
+Aplicar cuando:
 - Se agregan features que manejan datos sensibles
 - Antes de deployment a producción
-- Al revisar configuraciones de deployment
+- Al revisar autenticación, credenciales o configuraciones de deployment

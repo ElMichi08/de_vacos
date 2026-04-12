@@ -5,6 +5,7 @@ import '../core/constants/app_colors.dart';
 import '../core/constants/app_constants.dart';
 import '../services/pedido_service.dart';
 import '../models/pedido.dart';
+import '../models/enums.dart';
 import '../widgets/back_header_widget.dart';
 import '../widgets/order_detail_modal.dart';
 import '../widgets/date_filter_widget.dart';
@@ -84,46 +85,46 @@ class _OrderListScreenState extends State<OrderListScreen> {
     }
   }
 
-  Color _getEstadoColor(String estado) {
+  Color _getEstadoColor(OrderStatus estado) {
     switch (estado) {
-      case 'En preparación':
+      case OrderStatus.enPreparacion:
         return Colors.blue;
-      case 'Despachada':
+      case OrderStatus.despachada:
         return AppColors.success;
-      case 'Cerrados':
+      case OrderStatus.cerrados:
         return Colors.grey;
-      case 'Cancelada':
+      case OrderStatus.cancelada:
         return AppColors.error;
-      default:
-        return Colors.white70;
     }
   }
 
-  Color _getEstadoPagoColor(String estadoPago) {
-    return estadoPago == 'Cobrado' ? AppColors.success : Colors.orange;
+  Color _getEstadoPagoColor(PaymentStatus estadoPago) {
+    return estadoPago == PaymentStatus.cobrado
+        ? AppColors.success
+        : Colors.orange;
   }
 
   /// Cambia el estado del pedido de forma secuencial
   /// En preparación → Despachada → Cerrados
   Future<void> _cambiarEstadoSecuencial(Pedido pedido) async {
     // Validar que el pedido no esté cancelado o cerrado
-    if (pedido.estado == 'Cancelada' ||
-        pedido.estado == 'Cerrados' ||
+    if (pedido.estado == OrderStatus.cancelada ||
+        pedido.estado == OrderStatus.cerrados ||
         pedido.cancelado) {
       return;
     }
 
-    String nuevoEstado;
+    OrderStatus nuevoEstado;
 
     switch (pedido.estado) {
-      case 'En preparación':
-        nuevoEstado = 'Despachada';
+      case OrderStatus.enPreparacion:
+        nuevoEstado = OrderStatus.despachada;
         break;
-      case 'Despachada':
+      case OrderStatus.despachada:
         // Validar que el pedido esté cobrado antes de cerrar
-        if (pedido.estadoPago != 'Cobrado') {
+        if (pedido.estadoPago != PaymentStatus.cobrado) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
+            ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
               SnackBar(
                 content: const Text('No se puede cerrar un pedido sin cobrar'),
                 backgroundColor: AppColors.error,
@@ -133,27 +134,20 @@ class _OrderListScreenState extends State<OrderListScreen> {
           }
           return;
         }
-        nuevoEstado = 'Cerrados';
+        nuevoEstado = OrderStatus.cerrados;
         break;
       default:
         return; // No se puede cambiar si ya está en Cerrados o Cancelada
     }
 
     try {
-      await PedidoService.actualizarEstado(pedido.id!, nuevoEstado);
+      await PedidoService.actualizarEstado(pedido.id!, nuevoEstado.displayName);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text('Estado cambiado a $nuevoEstado'),
-            backgroundColor: AppColors.success,
-            duration: const Duration(seconds: 2),
-          ),
-        );
         _cargarPedidos();
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
           SnackBar(
             content: Text('Error: ${e.toString()}'),
             backgroundColor: AppColors.error,
@@ -169,18 +163,18 @@ class _OrderListScreenState extends State<OrderListScreen> {
   /// Si es transferencia, muestra modal para tomar foto de la transferencia
   Future<void> _cambiarEstadoPagoSecuencial(Pedido pedido) async {
     // Validar que el pedido no esté cancelado o cerrado
-    if (pedido.estado == 'Cancelada' ||
-        pedido.estado == 'Cerrados' ||
+    if (pedido.estado == OrderStatus.cancelada ||
+        pedido.estado == OrderStatus.cerrados ||
         pedido.cancelado) {
       return;
     }
 
-    if (pedido.estadoPago != 'Pendiente') {
+    if (pedido.estadoPago != PaymentStatus.pendiente) {
       return; // Solo se puede cambiar si está pendiente
     }
 
     // Si es efectivo, mostrar modal de cobro con cálculo de cambio
-    if (pedido.metodoPago == 'Efectivo') {
+    if (pedido.metodoPago == PaymentMethod.efectivo) {
       final resultado = await showDialog<bool>(
         context: context,
         barrierColor: Colors.black.withValues(alpha: 0.7),
@@ -195,20 +189,16 @@ class _OrderListScreenState extends State<OrderListScreen> {
       // Si el usuario confirmó el cobro (retornó true)
       if ((resultado ?? false) && mounted) {
         try {
-          await PedidoService.actualizarEstadoPago(pedido.id!, 'Cobrado');
+          await PedidoService.actualizarEstadoPago(
+            pedido.id!,
+            PaymentStatus.cobrado.displayName,
+          );
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Pago registrado correctamente'),
-                backgroundColor: AppColors.success,
-                duration: Duration(seconds: 2),
-              ),
-            );
             _cargarPedidos();
           }
         } catch (e) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
+            ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
               SnackBar(
                 content: Text('Error: ${e.toString()}'),
                 backgroundColor: AppColors.error,
@@ -236,22 +226,15 @@ class _OrderListScreenState extends State<OrderListScreen> {
           final fotoPath = resultado['fotoPath'] as String?;
           await PedidoService.actualizarEstadoPago(
             pedido.id!,
-            'Cobrado',
+            PaymentStatus.cobrado.displayName,
             fotoTransferenciaPath: fotoPath,
           );
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              const SnackBar(
-                content: Text('Pago registrado correctamente'),
-                backgroundColor: AppColors.success,
-                duration: Duration(seconds: 2),
-              ),
-            );
             _cargarPedidos();
           }
         } catch (e) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
+            ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
               SnackBar(
                 content: Text('Error: ${e.toString()}'),
                 backgroundColor: AppColors.error,
@@ -265,8 +248,8 @@ class _OrderListScreenState extends State<OrderListScreen> {
 
   void _mostrarDialogoCancelacion(Pedido pedido) {
     // Validar que el pedido no esté cerrado
-    if (pedido.estado == 'Cerrados') {
-      ScaffoldMessenger.of(context).showSnackBar(
+    if (pedido.estado == OrderStatus.cerrados) {
+      ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
         const SnackBar(
           content: Text('No se pueden cancelar pedidos cerrados'),
           backgroundColor: AppColors.error,
@@ -275,6 +258,81 @@ class _OrderListScreenState extends State<OrderListScreen> {
       return;
     }
 
+    // UC-06: pedido cobrado con snapshot → mostrar opciones de devolución
+    final tieneSSnapshot =
+        pedido.estadoPago == PaymentStatus.cobrado && pedido.productosCobrados != null;
+
+    if (tieneSSnapshot) {
+      showDialog<void>(
+        context: context,
+        builder: (context) => AlertDialog(
+          backgroundColor: AppColors.cardBackground,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(AppConstants.borderRadiusLarge),
+          ),
+          title: Row(
+            children: [
+              Icon(Icons.warning, color: AppColors.error, size: 28),
+              const SizedBox(width: 12),
+              const Expanded(
+                child: Text('Cancelar Pedido',
+                    style: TextStyle(color: Colors.white, fontSize: 20)),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                '¿Cómo deseas cancelar el pedido #${pedido.numeroOrden}?',
+                style: const TextStyle(color: Colors.white70, fontSize: 15),
+              ),
+              const SizedBox(height: 8),
+              const Text(
+                'El pedido ya fue cobrado. Elige si devolver el stock:',
+                style: TextStyle(color: Colors.white54, fontSize: 13),
+              ),
+            ],
+          ),
+          actionsAlignment: MainAxisAlignment.spaceEvenly,
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(context),
+              child: const Text('No, mantener',
+                  style: TextStyle(color: Colors.white54)),
+            ),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(context);
+                _cancelarConEleccion(pedido, devolverStock: true);
+              },
+              icon: const Icon(Icons.undo, size: 16),
+              label: const Text('No fue preparado'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.accent,
+                foregroundColor: Colors.white,
+              ),
+            ),
+            ElevatedButton.icon(
+              onPressed: () {
+                Navigator.pop(context);
+                _cancelarConEleccion(pedido, devolverStock: false);
+              },
+              icon: const Icon(Icons.local_shipping, size: 16),
+              label: const Text('Ya fue despachado'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.error,
+                foregroundColor: Colors.white,
+              ),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    // Sin snapshot: diálogo simple (pedido no cobrado o histórico)
     showDialog<bool>(
       context: context,
       builder:
@@ -369,7 +427,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
     try {
       await PedidoService.cancelar(pedido.id!);
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
           SnackBar(
             content: Text('Pedido #${pedido.numeroOrden} cancelado'),
             backgroundColor: AppColors.success,
@@ -380,12 +438,140 @@ class _OrderListScreenState extends State<OrderListScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
+        ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
           SnackBar(
             content: Text('Error: ${e.toString()}'),
             backgroundColor: AppColors.error,
           ),
         );
+      }
+    }
+  }
+
+  Future<void> _cancelarConEleccion(Pedido pedido, {required bool devolverStock}) async {
+    try {
+      await PedidoService.cancelarConEleccion(pedido.id!, devolverStock: devolverStock);
+      if (mounted) {
+        ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
+          SnackBar(
+            content: Text('Pedido #${pedido.numeroOrden} cancelado'),
+            backgroundColor: AppColors.success,
+            duration: const Duration(seconds: 2),
+          ),
+        );
+        _cargarPedidos();
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)..clearSnackBars()..showSnackBar(
+          SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: AppColors.error,
+          ),
+        );
+      }
+    }
+  }
+
+  /// Retorna true si los productos actuales difieren del snapshot cobrado.
+  bool _tieneProductosDiferentes(Pedido pedido) {
+    final cobrados = pedido.productosCobrados;
+    if (cobrados == null) return false;
+
+    Map<int, int> agrupar(List<Map<String, dynamic>> lista) {
+      final m = <int, int>{};
+      for (final p in lista) {
+        final idRaw = p['productoId'] ?? p['id'];
+        if (idRaw == null) continue;
+        final id = idRaw is int ? idRaw : int.tryParse(idRaw.toString());
+        if (id == null) continue;
+        final cantRaw = p['cantidad'] ?? 1;
+        final cant = cantRaw is int
+            ? cantRaw
+            : (cantRaw is double ? cantRaw.toInt() : int.tryParse(cantRaw.toString()) ?? 1);
+        m[id] = (m[id] ?? 0) + cant;
+      }
+      return m;
+    }
+
+    return agrupar(pedido.productos) != agrupar(cobrados);
+  }
+
+  /// Flujo de actualización de pago para órdenes en estado [recobrar].
+  /// Muestra selector de método, luego el modal correspondiente con el monto diferencia.
+  Future<void> _actualizarPago(Pedido pedido) async {
+    if (!pedido.puedeRecobrar) {
+      ScaffoldMessenger.of(context)
+        ..clearSnackBars()
+        ..showSnackBar(const SnackBar(
+          content: Text('Límite de 2 recobros alcanzado para este pedido'),
+          backgroundColor: Colors.orange,
+          duration: Duration(seconds: 3),
+        ));
+      return;
+    }
+
+    // Para órdenes históricas sin pagos registrados, usar total completo
+    final monto = pedido.pagos != null ? pedido.diferencia : pedido.total;
+
+    final metodo = await showModalBottomSheet<PaymentMethod>(
+      context: context,
+      backgroundColor: Colors.transparent,
+      builder: (ctx) => _MetodoPagoSheet(
+        diferencia: monto,
+        numeroOrden: pedido.numeroOrden,
+      ),
+    );
+    if (metodo == null || !mounted) return;
+
+    try {
+      if (metodo == PaymentMethod.efectivo) {
+        final ok = await showDialog<bool>(
+          context: context,
+          barrierColor: Colors.black.withValues(alpha: 0.7),
+          builder: (_) => PaymentModal(
+            totalAPagar: monto,
+            cliente: pedido.cliente,
+            numeroOrden: pedido.numeroOrden,
+            titulo: 'Actualizar Pago',
+          ),
+        );
+        if (!(ok ?? false) || !mounted) return;
+        await PedidoService.actualizarEstadoPago(
+          pedido.id!,
+          PaymentStatus.cobrado.displayName,
+          metodoPago: PaymentMethod.efectivo,
+          montoPagado: monto,
+        );
+      } else {
+        final res = await showDialog<Map<String, dynamic>?>(
+          context: context,
+          barrierColor: Colors.black.withValues(alpha: 0.7),
+          builder: (_) => TransferPaymentModal(
+            totalAPagar: monto,
+            cliente: pedido.cliente,
+            numeroOrden: pedido.numeroOrden,
+            titulo: 'Actualizar Pago',
+          ),
+        );
+        if (res == null || !(res['cobrado'] as bool) || !mounted) return;
+        await PedidoService.actualizarEstadoPago(
+          pedido.id!,
+          PaymentStatus.cobrado.displayName,
+          metodoPago: PaymentMethod.transferencia,
+          montoPagado: monto,
+          fotoTransferenciaPath: res['fotoPath'] as String?,
+        );
+      }
+      if (mounted) _cargarPedidos();
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context)
+          ..clearSnackBars()
+          ..showSnackBar(SnackBar(
+            content: Text('Error: ${e.toString()}'),
+            backgroundColor: AppColors.error,
+          ));
       }
     }
   }
@@ -654,8 +840,8 @@ class _OrderListScreenState extends State<OrderListScreen> {
 
               // Solo mostrar acción de cancelar si el pedido NO está cerrado
               final puedeCancelar =
-                  pedido.estado != 'Cerrados' &&
-                  pedido.estado != 'Cancelada' &&
+                  pedido.estado != OrderStatus.cerrados &&
+                  pedido.estado != OrderStatus.cancelada &&
                   !pedido.cancelado;
 
               return Padding(
@@ -777,8 +963,10 @@ class _OrderListScreenState extends State<OrderListScreen> {
                                     // Badge de estado (clickeable solo si no está cerrado ni cancelado)
                                     InkWell(
                                       onTap:
-                                          pedido.estado != 'Cancelada' &&
-                                                  pedido.estado != 'Cerrados' &&
+                                          pedido.estado !=
+                                                      OrderStatus.cancelada &&
+                                                  pedido.estado !=
+                                                      OrderStatus.cerrados &&
                                                   !pedido.cancelado
                                               ? () {
                                                 _cambiarEstadoSecuencial(
@@ -818,7 +1006,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
                                             ),
                                             const SizedBox(width: 4),
                                             Text(
-                                              pedido.estado,
+                                              pedido.estado.displayName,
                                               style: TextStyle(
                                                 color: _getEstadoColor(
                                                   pedido.estado,
@@ -827,8 +1015,10 @@ class _OrderListScreenState extends State<OrderListScreen> {
                                                 fontSize: 12,
                                               ),
                                             ),
-                                            if (pedido.estado != 'Cancelada' &&
-                                                pedido.estado != 'Cerrados' &&
+                                            if (pedido.estado !=
+                                                    OrderStatus.cancelada &&
+                                                pedido.estado !=
+                                                    OrderStatus.cerrados &&
                                                 !pedido.cancelado) ...[
                                               const SizedBox(width: 4),
                                               Icon(
@@ -843,81 +1033,87 @@ class _OrderListScreenState extends State<OrderListScreen> {
                                         ),
                                       ),
                                     ),
-                                    // Badge de estado de pago (clickeable solo si no está cancelado ni cerrado)
-                                    InkWell(
-                                      onTap:
-                                          pedido.estadoPago == 'Pendiente' &&
-                                                  pedido.estado !=
-                                                      'Cancelada' &&
-                                                  pedido.estado != 'Cerrados' &&
-                                                  !pedido.cancelado
-                                              ? () {
-                                                _cambiarEstadoPagoSecuencial(
-                                                  pedido,
-                                                );
-                                              }
+                                    // Badge de estado de pago
+                                    Builder(builder: (context) {
+                                      final activo = !pedido.cancelado &&
+                                          pedido.estado != OrderStatus.cancelada &&
+                                          pedido.estado != OrderStatus.cerrados;
+                                      final puedeCobroPendiente =
+                                          activo && pedido.estadoPago == PaymentStatus.pendiente;
+                                      // Recobro explícito (estado recobrar en DB)
+                                      final puedeReCobro = activo &&
+                                          pedido.estadoPago == PaymentStatus.recobrar &&
+                                          pedido.puedeRecobrar;
+                                      // Fallback para órdenes históricas sin columna pagos
+                                      final puedeReCobroHistorico = activo &&
+                                          pedido.estadoPago == PaymentStatus.cobrado &&
+                                          pedido.pagos == null &&
+                                          _tieneProductosDiferentes(pedido);
+                                      final esRecobrar = puedeReCobro || puedeReCobroHistorico;
+                                      final label = esRecobrar
+                                          ? 'Recobrar'
+                                          : pedido.estadoPago.displayName;
+                                      final color = _getEstadoPagoColor(pedido.estadoPago);
+                                      final tappable = puedeCobroPendiente || esRecobrar;
+
+                                      return Tooltip(
+                                        message: activo &&
+                                                pedido.estadoPago == PaymentStatus.cobrado &&
+                                                pedido.productosCobrados == null
+                                            ? 'Pedido histórico, sin recálculo'
+                                            : '',
+                                        child: InkWell(
+                                          onTap: tappable
+                                              ? () => esRecobrar
+                                                  ? _actualizarPago(pedido)
+                                                  : _cambiarEstadoPagoSecuencial(pedido)
                                               : null,
-                                      borderRadius: BorderRadius.circular(8),
-                                      child: Container(
-                                        padding: const EdgeInsets.symmetric(
-                                          horizontal: 10,
-                                          vertical: 6,
-                                        ),
-                                        decoration: BoxDecoration(
-                                          color: _getEstadoPagoColor(
-                                            pedido.estadoPago,
-                                          ).withValues(alpha: 0.2),
-                                          borderRadius: BorderRadius.circular(
-                                            8,
-                                          ),
-                                          border: Border.all(
-                                            color: _getEstadoPagoColor(
-                                              pedido.estadoPago,
+                                          borderRadius: BorderRadius.circular(8),
+                                          child: Container(
+                                            padding: const EdgeInsets.symmetric(
+                                              horizontal: 10,
+                                              vertical: 6,
                                             ),
-                                            width: 1.5,
-                                          ),
-                                        ),
-                                        child: Row(
-                                          mainAxisSize: MainAxisSize.min,
-                                          children: [
-                                            Icon(
-                                              pedido.estadoPago == 'Cobrado'
-                                                  ? Icons.check_circle
-                                                  : Icons.pending,
-                                              size: 14,
-                                              color: _getEstadoPagoColor(
-                                                pedido.estadoPago,
-                                              ),
+                                            decoration: BoxDecoration(
+                                              color: color.withValues(alpha: 0.2),
+                                              borderRadius: BorderRadius.circular(8),
+                                              border: Border.all(color: color, width: 1.5),
                                             ),
-                                            const SizedBox(width: 4),
-                                            Text(
-                                              pedido.estadoPago,
-                                              style: TextStyle(
-                                                color: _getEstadoPagoColor(
-                                                  pedido.estadoPago,
+                                            child: Row(
+                                              mainAxisSize: MainAxisSize.min,
+                                              children: [
+                                                Icon(
+                                                  esRecobrar
+                                                      ? Icons.sync
+                                                      : pedido.estadoPago == PaymentStatus.cobrado
+                                                          ? Icons.check_circle
+                                                          : Icons.pending,
+                                                  size: 14,
+                                                  color: color,
                                                 ),
-                                                fontWeight: FontWeight.bold,
-                                                fontSize: 12,
-                                              ),
+                                                const SizedBox(width: 4),
+                                                Text(
+                                                  label,
+                                                  style: TextStyle(
+                                                    color: color,
+                                                    fontWeight: FontWeight.bold,
+                                                    fontSize: 12,
+                                                  ),
+                                                ),
+                                                if (tappable) ...[
+                                                  const SizedBox(width: 4),
+                                                  Icon(
+                                                    Icons.arrow_forward_ios,
+                                                    size: 10,
+                                                    color: color.withValues(alpha: 0.7),
+                                                  ),
+                                                ],
+                                              ],
                                             ),
-                                            if (pedido.estadoPago ==
-                                                    'Pendiente' &&
-                                                pedido.estado != 'Cancelada' &&
-                                                pedido.estado != 'Cerrados' &&
-                                                !pedido.cancelado) ...[
-                                              const SizedBox(width: 4),
-                                              Icon(
-                                                Icons.arrow_forward_ios,
-                                                size: 10,
-                                                color: _getEstadoPagoColor(
-                                                  pedido.estadoPago,
-                                                ).withValues(alpha: 0.7),
-                                              ),
-                                            ],
-                                          ],
+                                          ),
                                         ),
-                                      ),
-                                    ),
+                                      );
+                                    }),
                                   ],
                                 ),
                                 const SizedBox(height: 12),
@@ -926,7 +1122,8 @@ class _OrderListScreenState extends State<OrderListScreen> {
                                 Row(
                                   children: [
                                     Icon(
-                                      pedido.metodoPago == 'Efectivo'
+                                      pedido.metodoPago ==
+                                              PaymentMethod.efectivo
                                           ? Icons.money
                                           : Icons.account_balance_wallet,
                                       size: 16,
@@ -934,7 +1131,7 @@ class _OrderListScreenState extends State<OrderListScreen> {
                                     ),
                                     const SizedBox(width: 4),
                                     Text(
-                                      pedido.metodoPago,
+                                      pedido.metodoPago.displayName,
                                       style: const TextStyle(
                                         color: Colors.white70,
                                         fontSize: 13,
@@ -957,8 +1154,8 @@ class _OrderListScreenState extends State<OrderListScreen> {
 
                           // FloatingActionButton circular para editar (esquina superior derecha)
                           // Solo se muestra si el pedido no está cerrado ni cancelado
-                          if (pedido.estado != 'Cerrados' &&
-                              pedido.estado != 'Cancelada')
+                          if (pedido.estado != OrderStatus.cerrados &&
+                              pedido.estado != OrderStatus.cancelada)
                             Positioned(
                               top: 8,
                               right: 8,
@@ -1041,6 +1238,127 @@ class _OrderListScreenState extends State<OrderListScreen> {
         });
         _cargarPedidos();
       },
+    );
+  }
+}
+
+// ── Selector de método de pago para recobro ─────────────────────────────────
+
+class _MetodoPagoSheet extends StatelessWidget {
+  final double diferencia;
+  final int numeroOrden;
+
+  const _MetodoPagoSheet({
+    required this.diferencia,
+    required this.numeroOrden,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.fromLTRB(20, 16, 20, 32),
+      decoration: BoxDecoration(
+        color: AppColors.cardBackground,
+        borderRadius: const BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 40,
+            height: 4,
+            margin: const EdgeInsets.only(bottom: 16),
+            decoration: BoxDecoration(
+              color: Colors.white24,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          Row(
+            children: [
+              Icon(Icons.sync, color: Colors.orange, size: 22),
+              const SizedBox(width: 10),
+              Text(
+                'Actualizar Pago — #$numeroOrden',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 4),
+          Align(
+            alignment: Alignment.centerLeft,
+            child: Text(
+              'Diferencia: \$${diferencia.toStringAsFixed(2)}',
+              style: const TextStyle(color: Colors.white54, fontSize: 14),
+            ),
+          ),
+          const SizedBox(height: 20),
+          Row(
+            children: [
+              Expanded(
+                child: _MetodoBtn(
+                  icon: Icons.payments_outlined,
+                  label: 'Efectivo',
+                  onTap: () => Navigator.pop(context, PaymentMethod.efectivo),
+                ),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: _MetodoBtn(
+                  icon: Icons.phone_android_outlined,
+                  label: 'Transferencia',
+                  onTap: () => Navigator.pop(context, PaymentMethod.transferencia),
+                ),
+              ),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MetodoBtn extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onTap;
+
+  const _MetodoBtn({
+    required this.icon,
+    required this.label,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        padding: const EdgeInsets.symmetric(vertical: 16),
+        decoration: BoxDecoration(
+          color: AppColors.primary.withValues(alpha: 0.2),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppColors.accent.withValues(alpha: 0.4)),
+        ),
+        child: Column(
+          children: [
+            Icon(icon, color: AppColors.accent, size: 28),
+            const SizedBox(height: 8),
+            Text(
+              label,
+              style: const TextStyle(
+                color: Colors.white,
+                fontWeight: FontWeight.w600,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }

@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as path_utils;
 import 'package:de_vacos/core/database/db_helper.dart';
 import 'package:de_vacos/models/pedido.dart';
+import 'package:de_vacos/models/enums.dart';
 import 'package:de_vacos/services/pedido_service.dart';
 
 void main() {
@@ -33,9 +34,9 @@ void main() {
         numeroOrden: 1,
         cliente: 'Test Cliente',
         celular: '099999999',
-        metodoPago: 'Efectivo',
-        estado: 'En preparación',
-        estadoPago: 'Pendiente',
+        metodoPago: PaymentMethod.efectivo,
+        estado: OrderStatus.enPreparacion,
+        estadoPago: PaymentStatus.pendiente,
         productos: [
           {'nombre': 'Producto Test', 'cantidad': 1, 'precio': 10.0},
         ],
@@ -46,12 +47,15 @@ void main() {
       final id = await PedidoService.guardar(pedido);
       expect(id, greaterThan(0));
 
-      await PedidoService.actualizarEstadoPago(id, 'Cobrado');
+      await PedidoService.actualizarEstadoPago(
+        id,
+        PaymentStatus.cobrado.displayName,
+      );
 
       final lista = await PedidoService.obtenerTodos();
       expect(lista, isNotEmpty);
       final encontrado = lista.firstWhere((p) => p.id == id);
-      expect(encontrado.estadoPago, 'Cobrado');
+      expect(encontrado.estadoPago, PaymentStatus.cobrado);
     });
 
     test('listar pedidos del día devuelve lista', () async {
@@ -64,9 +68,9 @@ void main() {
         numeroOrden: 2,
         cliente: 'Test Cliente 2',
         celular: '099999998',
-        metodoPago: 'Efectivo',
-        estado: 'Despachada',
-        estadoPago: 'Pendiente',
+        metodoPago: PaymentMethod.efectivo,
+        estado: OrderStatus.despachada,
+        estadoPago: PaymentStatus.pendiente,
         productos: [
           {'nombre': 'Producto Test', 'cantidad': 1, 'precio': 10.0},
         ],
@@ -89,9 +93,9 @@ void main() {
         numeroOrden: 3,
         cliente: 'Test Cliente 3',
         celular: '099999997',
-        metodoPago: 'Efectivo',
-        estado: 'Despachada',
-        estadoPago: 'Cobrado',
+        metodoPago: PaymentMethod.efectivo,
+        estado: OrderStatus.despachada,
+        estadoPago: PaymentStatus.cobrado,
         productos: [
           {'nombre': 'Producto Test', 'cantidad': 1, 'precio': 10.0},
         ],
@@ -107,7 +111,7 @@ void main() {
 
       final lista = await PedidoService.obtenerTodos();
       final encontrado = lista.firstWhere((p) => p.id == id);
-      expect(encontrado.estado, 'Cerrados');
+      expect(encontrado.estado, OrderStatus.cerrados);
     });
   });
 }

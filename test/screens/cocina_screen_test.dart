@@ -5,6 +5,7 @@ import 'package:path/path.dart' as path_utils;
 import 'package:de_vacos/core/database/db_helper.dart';
 import 'package:de_vacos/screens/cocina_screen.dart';
 import 'package:de_vacos/models/pedido.dart';
+import 'package:de_vacos/models/enums.dart';
 import 'package:de_vacos/services/pedido_service.dart';
 
 void main() {
@@ -27,9 +28,9 @@ void main() {
       numeroOrden: 1,
       cliente: 'Test Cliente',
       celular: '099999999',
-      metodoPago: 'Efectivo',
-      estado: 'En preparación',
-      estadoPago: 'Pendiente',
+      metodoPago: PaymentMethod.efectivo,
+      estado: OrderStatus.enPreparacion,
+      estadoPago: PaymentStatus.pendiente,
       productos: [
         {'nombre': 'Producto Test', 'cantidad': 1, 'precio': 10.0},
       ],

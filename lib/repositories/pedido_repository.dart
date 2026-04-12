@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:de_vacos/models/pedido.dart';
 import 'package:de_vacos/models/enums.dart';
 import 'package:de_vacos/repositories/i_pedido_repository.dart';
@@ -174,36 +175,81 @@ class PedidoRepository implements IPedidoRepository {
   Future<int> actualizarEstadoPago(
     int pedidoId,
     String estadoPago, {
+    PaymentMethod? metodoPago,
+    double? montoPagado,
     String? fotoTransferenciaPath,
+    String? productosCobradosJson,
     Transaction? txn,
   }) async {
-    if (txn != null) {
-      final updateData = <String, dynamic>{'estadoPago': estadoPago};
-      if (fotoTransferenciaPath != null) {
-        updateData['fotoTransferenciaPath'] = fotoTransferenciaPath;
-      }
-      return await txn.update(
+    Future<int> doUpdate(DatabaseExecutor executor) async {
+      // Leer pagos actuales para hacer append
+      final rows = await executor.query(
         'pedidos',
-        updateData,
+        columns: ['pagos', 'fotoTransferenciaPath'],
+        where: 'id = ?',
+        whereArgs: [pedidoId],
+      );
+      List<Map<String, dynamic>> pagosList = [];
+      String? existingFoto = rows.isNotEmpty
+          ? rows.first['fotoTransferenciaPath'] as String?
+          : null;
+      if (rows.isNotEmpty && rows.first['pagos'] != null) {
+        try {
+          final decoded = jsonDecode(rows.first['pagos'] as String);
+          if (decoded is List) {
+            pagosList = List<Map<String, dynamic>>.from(decoded);
+          }
+        } catch (_) {}
+      }
+
+      // Agregar el nuevo pago si se proporcionaron método y monto
+      if (metodoPago != null && montoPagado != null) {
+        pagosList.add({
+          'metodo': metodoPago.displayName,
+          'monto': montoPagado,
+          'foto': fotoTransferenciaPath,
+        });
+        // Backward compat: fotoTransferenciaPath = primera foto de transfer
+        if (fotoTransferenciaPath != null && existingFoto == null) {
+          existingFoto = fotoTransferenciaPath;
+        }
+      }
+
+      final d = <String, dynamic>{'estadoPago': estadoPago};
+      if (pagosList.isNotEmpty) {
+        d['pagos'] = jsonEncode(pagosList);
+      }
+      if (fotoTransferenciaPath != null || existingFoto != null) {
+        d['fotoTransferenciaPath'] = existingFoto ?? fotoTransferenciaPath;
+      }
+      if (productosCobradosJson != null) {
+        d['productosCobrados'] = productosCobradosJson;
+      }
+
+      return await executor.update(
+        'pedidos',
+        d,
         where: 'id = ?',
         whereArgs: [pedidoId],
       );
     }
 
+    if (txn != null) return await doUpdate(txn);
     final db = await DBHelper.db;
-    return await db.transaction((txn) async {
-      final updateData = <String, dynamic>{'estadoPago': estadoPago};
-      if (fotoTransferenciaPath != null) {
-        updateData['fotoTransferenciaPath'] = fotoTransferenciaPath;
-      }
-      final rows = await txn.update(
-        'pedidos',
-        updateData,
-        where: 'id = ?',
-        whereArgs: [pedidoId],
-      );
-      return rows;
-    });
+    return await db.transaction((t) => doUpdate(t));
+  }
+
+  @override
+  Future<void> setRecobrar(int pedidoId, {Transaction? txn}) async {
+    final data = {'estadoPago': PaymentStatus.recobrar.displayName};
+    if (txn != null) {
+      await txn.update('pedidos', data, where: 'id = ?', whereArgs: [pedidoId]);
+      return;
+    }
+    final db = await DBHelper.db;
+    await db.transaction(
+      (t) => t.update('pedidos', data, where: 'id = ?', whereArgs: [pedidoId]),
+    );
   }
 
   @override

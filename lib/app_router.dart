@@ -8,9 +8,8 @@ import 'panel/panel_cobros_screen.dart';
 import 'panel/panel_reportes_screen.dart';
 import 'panel/panel_shell.dart';
 import 'screens/caja_screen.dart';
-import 'screens/edit_order_screen.dart';
 import 'screens/home_screen.dart';
-import 'screens/new_order_screen.dart';
+import 'screens/order_form_screen.dart';
 import 'screens/order_list_screen.dart';
 import 'screens/printer_settings_screen.dart';
 import 'screens/product_grid_screen.dart';
@@ -19,11 +18,15 @@ import 'screens/test_data_screen.dart';
 import 'screens/add_product_screen.dart';
 import 'screens/cocina_screen.dart';
 import 'screens/insumos_screen.dart';
+import 'screens/menu/menu_grid_screen.dart';
+import 'screens/menu/menu_item_form_screen.dart';
+import 'menu/dominio/definicion/menu_item_definicion.dart';
 import 'services/pedido_service.dart';
 import 'services/producto_service.dart';
 
 /// Mapa ruta base → feature id (para guard: si el feature no está habilitado, redirigir a /home).
 const Map<String, String> _routeToFeature = {
+  '/menu': 'menu',
   '/productos': 'productos',
   '/pedidos': 'pedidos',
   '/cocina': 'cocina',
@@ -112,7 +115,7 @@ final GoRouter appRouter = GoRouter(
         GoRoute(
           path: 'nueva',
           name: 'pedidoNueva',
-          builder: (_, __) => const NewOrderScreen(),
+          builder: (_, __) => const OrderFormScreen(),
         ),
         GoRoute(
           path: ':id/editar',
@@ -157,6 +160,27 @@ final GoRouter appRouter = GoRouter(
       builder: (_, __) => const CocinaScreen(),
     ),
     GoRoute(
+      path: '/menu',
+      name: 'menu',
+      builder: (_, __) => const MenuGridScreen(),
+      routes: [
+        GoRoute(
+          path: 'nuevo',
+          name: 'menuNuevo',
+          builder: (_, __) => const MenuItemFormScreen(),
+        ),
+        GoRoute(
+          path: 'editar/:id',
+          name: 'menuEditar',
+          builder: (context, state) {
+            final extra = state.extra;
+            final item = extra is MenuItemDefinicion ? extra : null;
+            return MenuItemFormScreen(item: item);
+          },
+        ),
+      ],
+    ),
+    GoRoute(
       path: '/panel',
       name: 'panel',
       redirect: (_, __) => '/panel/reportes',
@@ -174,7 +198,7 @@ final GoRouter appRouter = GoRouter(
   ],
 );
 
-/// Wrapper que muestra [EditOrderScreen] con [Pedido] pasado por extra o cargado por id.
+/// Wrapper que muestra [OrderFormScreen] en modo edición con [Pedido] pasado por extra o cargado por id.
 class _EditOrderRouteWrapper extends StatefulWidget {
   final String? orderId;
   final Pedido? pedido;
@@ -202,7 +226,7 @@ class _EditOrderRouteWrapperState extends State<_EditOrderRouteWrapper> {
   @override
   Widget build(BuildContext context) {
     if (widget.pedido != null) {
-      return EditOrderScreen(pedido: widget.pedido!);
+      return OrderFormScreen(pedido: widget.pedido!);
     }
     return FutureBuilder<Pedido?>(
       future: _loadPedido(),
@@ -234,7 +258,7 @@ class _EditOrderRouteWrapperState extends State<_EditOrderRouteWrapper> {
             ),
           );
         }
-        return EditOrderScreen(pedido: pedido);
+        return OrderFormScreen(pedido: pedido);
       },
     );
   }

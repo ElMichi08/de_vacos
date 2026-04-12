@@ -67,18 +67,20 @@ class SupabaseSyncService {
           );
           enviados++;
         } catch (e) {
-          if (kDebugMode)
+          if (kDebugMode) {
             debugPrint(
               '⚠️ Error al sincronizar fecha ${_formatearFecha(fecha)}',
             );
+          }
         }
       }
       if (kDebugMode && enviados > 0) {
         debugPrint('✅ Reportes en background: $enviados días enviados.');
       }
     } catch (e) {
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint('⚠️ Error en envío background de reportes: $e');
+      }
     }
   }
 
@@ -118,8 +120,9 @@ class SupabaseSyncService {
       await supabase
           .from('reportes_semanales')
           .upsert(datos, onConflict: 'cliente_id,fecha_corte');
-      if (kDebugMode)
+      if (kDebugMode) {
         debugPrint('✅ Reporte sincronizado (${_formatearFecha(fechaCorte)})');
+      }
     } catch (e) {
       if (kDebugMode) {
         debugPrint('❌ Error al subir reporte: $e');

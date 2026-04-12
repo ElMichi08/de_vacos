@@ -9,12 +9,14 @@ class PaymentModal extends StatefulWidget {
   final double totalAPagar;
   final String cliente;
   final int numeroOrden;
+  final String titulo;
 
   const PaymentModal({
     super.key,
     required this.totalAPagar,
     required this.cliente,
     required this.numeroOrden,
+    this.titulo = 'Pago en Efectivo',
   });
 
   @override
@@ -164,7 +166,16 @@ class _PaymentModalState extends State<PaymentModal> {
                       ),
                     ],
                   ),
-                  const SizedBox(height: 16),
+                  const SizedBox(height: 8),
+                  Text(
+                    widget.titulo,
+                    style: TextStyle(
+                      color: Colors.white54,
+                      fontSize: 12,
+                      letterSpacing: 1.5,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
                   Row(
                     mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [

@@ -1,6 +1,7 @@
 import 'dart:math';
 import '../../models/pedido.dart';
 import '../../models/producto.dart';
+import '../../models/enums.dart';
 
 /// Factory para generar pedidos aleatorios de prueba
 /// Implementa el patrón Factory para crear instancias de Pedido con datos aleatorios
@@ -42,10 +43,7 @@ class PedidoFactory {
   ];
 
   // Lista de métodos de pago
-  static final List<String> _metodosPago = [
-    'Efectivo',
-    'Transferencia',
-  ];
+  static const List<PaymentMethod> _metodosPago = PaymentMethod.values;
 
   // Lista de notas aleatorias (algunas vacías para simular realidad)
   static final List<String> _notas = [
@@ -219,8 +217,8 @@ class PedidoFactory {
       cliente: cliente,
       celular: celular,
       metodoPago: metodoPago,
-      estado: 'En preparación',
-      estadoPago: _random.nextBool() ? 'Cobrado' : 'Pendiente',
+      estado: OrderStatus.enPreparacion,
+      estadoPago: _random.nextBool() ? PaymentStatus.cobrado : PaymentStatus.pendiente,
       productos: productos,
       fecha: fecha,
       total: total,

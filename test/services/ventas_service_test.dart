@@ -3,6 +3,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:path/path.dart' as path_utils;
 import 'package:de_vacos/core/database/db_helper.dart';
 import 'package:de_vacos/models/pedido.dart';
+import 'package:de_vacos/models/enums.dart';
 import 'package:de_vacos/services/pedido_service.dart';
 import 'package:de_vacos/services/ventas_service.dart';
 
@@ -34,9 +35,9 @@ void main() {
         numeroOrden: 1,
         cliente: 'Cliente',
         celular: '',
-        metodoPago: 'Efectivo',
-        estado: 'En preparación',
-        estadoPago: 'Pendiente',
+        metodoPago: PaymentMethod.efectivo,
+        estado: OrderStatus.enPreparacion,
+        estadoPago: PaymentStatus.pendiente,
         productos: [{'nombre': 'A', 'cantidad': 1, 'precio': 25.0}],
         fecha: hoy,
         total: 25.0,

@@ -2,6 +2,11 @@
 
 El proyecto usa **Engram MCP** para persistir aprendizajes y reducir la pérdida de contexto entre sesiones.
 
+## Configuración
+
+MCP configurado en `.mcp.json` (raíz del proyecto) con `ENGRAM_PROJECT=de_vacos`.  
+Para OpenCode: ejecutar `engram setup opencode` una vez.
+
 ## Cuándo guardar (`mem_save`)
 
 - Después de cada bugfix completado.
@@ -22,12 +27,19 @@ El proyecto usa **Engram MCP** para persistir aprendizajes y reducir la pérdida
 
 ## Formato para mem_save
 
-**title**: Verb + what — short, searchable
-**type**: bugfix | decision | architecture | discovery | pattern | config | preference
-**scope**: project (default) | personal
-**topic_key** (optional): stable key para decisiones evolucionando
+**title**: Verb + what — corto y buscable  
+**type**: bugfix | decision | architecture | discovery | pattern | config | preference  
+**scope**: project (default) | personal  
+**topic_key** (opcional): clave estable para decisiones que evolucionan  
 **content**:
-- **What**: One sentence — what was done
-- **Why**: What motivated it
-- **Where**: Files or paths affected
-- **Learned**: Gotchas, edge cases (omit if none)
+- **What**: Una oración — qué se hizo
+- **Why**: Qué lo motivó
+- **Where**: Archivos o paths afectados
+- **Learned**: Gotchas, edge cases (omitir si no hay)
+
+## Si Engram no está disponible
+
+Continuar el pipeline normalmente pero indicar al inicio de la respuesta:
+> "Operando sin memoria histórica (Engram no disponible)."
+
+No bloquear el flujo por falta de Engram — es una ayuda, no un requisito bloqueante.

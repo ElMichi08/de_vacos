@@ -11,12 +11,14 @@ class TransferPaymentModal extends StatefulWidget {
   final double totalAPagar;
   final String cliente;
   final int numeroOrden;
+  final String titulo;
 
   const TransferPaymentModal({
     super.key,
     required this.totalAPagar,
     required this.cliente,
     required this.numeroOrden,
+    this.titulo = 'Pago por transferencia',
   });
 
   @override
@@ -223,7 +225,16 @@ class _TransferPaymentModalState extends State<TransferPaymentModal> {
               ),
             ],
           ),
-          const SizedBox(height: 16),
+          const SizedBox(height: 8),
+          Text(
+            widget.titulo,
+            style: const TextStyle(
+              color: Colors.white54,
+              fontSize: 12,
+              letterSpacing: 1.5,
+            ),
+          ),
+          const SizedBox(height: 8),
           Row(
             mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [

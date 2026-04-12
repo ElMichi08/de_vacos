@@ -51,8 +51,9 @@ class ProductoRepository implements IProductoRepository {
 
   @override
   Future<void> actualizarProducto(Producto producto) async {
-    if (producto.id == null)
+    if (producto.id == null) {
       throw Exception('El producto debe tener ID para actualizar');
+    }
     final db = await DBHelper.db;
     await db.update(
       'productos',

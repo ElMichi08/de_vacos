@@ -1,6 +1,8 @@
+import 'dart:convert';
 import 'package:de_vacos/injection/container.dart';
 import 'package:de_vacos/models/pedido.dart';
 import 'package:de_vacos/models/enums.dart';
+import 'package:de_vacos/models/receta_detalle.dart';
 import 'package:de_vacos/services/facturacion/facturacion_service.dart';
 import 'package:de_vacos/services/insumo_service.dart';
 import 'package:de_vacos/services/receta_service.dart';
@@ -145,18 +147,28 @@ class PedidoService {
     return id;
   }
 
+  /// Marca el pedido como [recobrar] sin tocar pagos ni stock.
+  /// Se llama al guardar una edición sobre un pedido ya cobrado.
+  static Future<void> setRecobrar(int id) async {
+    await di.pedidoRepository.setRecobrar(id);
+  }
+
   /// Actualiza el estado de pago de un pedido.
   /// Si se cobra exitosamente, descuenta stock Y actualiza el estado en UNA transacción.
   /// Esto evita el locking de la base de datos.
   static Future<int> actualizarEstadoPago(
     int id,
     String nuevoEstadoPago, {
+    PaymentMethod? metodoPago,
+    double? montoPagado,
     String? fotoTransferenciaPath,
   }) async {
     if (nuevoEstadoPago != PaymentStatus.cobrado.displayName) {
       return await di.pedidoRepository.actualizarEstadoPago(
         id,
         nuevoEstadoPago,
+        metodoPago: metodoPago,
+        montoPagado: montoPagado,
         fotoTransferenciaPath: fotoTransferenciaPath,
       );
     }
@@ -166,38 +178,77 @@ class PedidoService {
 
     final db = await DBHelper.db;
     return await db.transaction((txn) async {
-      for (final prod in pedido.productos) {
-        final productoIdRaw = prod['productoId'] ?? prod['id'];
-        if (productoIdRaw == null) continue;
+      if (pedido.productosCobrados == null) {
+        // Cobro inicial: descontar stock completo (UC-01)
+        for (final prod in pedido.productos) {
+          final cantidadRaw = prod['cantidad'] ?? 1;
+          final cantidad =
+              cantidadRaw is int
+                  ? cantidadRaw
+                  : (cantidadRaw is double
+                      ? cantidadRaw.toInt()
+                      : int.tryParse(cantidadRaw.toString()) ?? 1);
 
-        final productoId =
-            productoIdRaw is int
-                ? productoIdRaw
-                : int.tryParse(productoIdRaw.toString());
-        if (productoId == null) continue;
+          // Ítem de menú: descontar proteínas directamente por ID (UC-02 menú)
+          if (prod['tipo'] == 'menu') {
+            final rawIds = prod['proteinaIds'];
+            if (rawIds is List) {
+              for (final rawId in rawIds) {
+                final insumoId =
+                    rawId is int ? rawId : int.tryParse(rawId.toString());
+                if (insumoId == null) continue;
+                final receta = [
+                  RecetaDetalle(
+                    productoId: 0,
+                    insumoId: insumoId,
+                    cantidad: 1.0,
+                  )
+                ];
+                await InsumoService.descontarStock(
+                  recetas: receta,
+                  cantidadProducto: cantidad,
+                  txn: txn,
+                );
+              }
+            }
+            continue;
+          }
 
-        final cantidadRaw = prod['cantidad'] ?? 1;
-        final cantidad =
-            cantidadRaw is int
-                ? cantidadRaw
-                : (cantidadRaw is double
-                    ? cantidadRaw.toInt()
-                    : int.tryParse(cantidadRaw.toString()) ?? 1);
+          // Producto regular: descontar vía receta_detalle
+          final productoIdRaw = prod['productoId'] ?? prod['id'];
+          if (productoIdRaw == null) continue;
 
-        final recetas = await RecetaService.obtenerPorProducto(productoId);
-        if (recetas.isNotEmpty) {
-          await InsumoService.descontarStock(
-            recetas: recetas,
-            cantidadProducto: cantidad,
-            txn: txn,
-          );
+          final productoId =
+              productoIdRaw is int
+                  ? productoIdRaw
+                  : int.tryParse(productoIdRaw.toString());
+          if (productoId == null) continue;
+
+          final recetas = await RecetaService.obtenerPorProducto(productoId, txn: txn);
+          if (recetas.isNotEmpty) {
+            await InsumoService.descontarStock(
+              recetas: recetas,
+              cantidadProducto: cantidad,
+              txn: txn,
+            );
+          }
         }
+      } else {
+        // Re-cobro incremental: solo descontar/devolver el diff (UC-04)
+        await InsumoService.aplicarDiffStock(
+          productosAntes: pedido.productosCobrados!,
+          productosDespues: pedido.productos,
+          txn: txn,
+        );
       }
 
       final rows = await di.pedidoRepository.actualizarEstadoPago(
         id,
         nuevoEstadoPago,
+        metodoPago: metodoPago,
+        montoPagado: montoPagado,
         fotoTransferenciaPath: fotoTransferenciaPath,
+        productosCobradosJson: jsonEncode(pedido.productos),
         txn: txn,
       );
 
@@ -206,6 +257,34 @@ class PedidoService {
       }
 
       return rows;
+    });
+  }
+
+  /// Cancela un pedido con elección de devolución de stock (UC-06).
+  /// Si [devolverStock] es true y había snapshot, revierte el stock descontado.
+  static Future<int> cancelarConEleccion(
+    int id, {
+    required bool devolverStock,
+  }) async {
+    final pedido = await obtenerPorId(id);
+    if (pedido == null) return 0;
+
+    final db = await DBHelper.db;
+    return await db.transaction((txn) async {
+      if (devolverStock && pedido.productosCobrados != null) {
+        await InsumoService.aplicarDiffStock(
+          productosAntes: pedido.productosCobrados!,
+          productosDespues: [],
+          txn: txn,
+        );
+      }
+      await txn.update(
+        'pedidos',
+        {'cancelado': 1, 'estado': 'Cancelada'},
+        where: 'id = ?',
+        whereArgs: [id],
+      );
+      return 1;
     });
   }
 
