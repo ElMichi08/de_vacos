@@ -68,12 +68,20 @@ void main() {
       expect(num, 100);
     });
 
-    test('con 100 pedidos → retorna 1 (reinicio)', () async {
+    test('con 100 pedidos → retorna 101 (sin ciclo)', () async {
       for (int i = 0; i < 100; i++) {
         await PedidoService.guardar(_pedidoRapido());
       }
       final num = await DBHelper.obtenerSiguienteNumeroOrden();
-      expect(num, 1);
+      expect(num, 101);
+    });
+
+    test('con 150 pedidos → retorna 151', () async {
+      for (int i = 0; i < 150; i++) {
+        await PedidoService.guardar(_pedidoRapido());
+      }
+      final num = await DBHelper.obtenerSiguienteNumeroOrden();
+      expect(num, 151);
     });
   });
 
@@ -101,114 +109,81 @@ void main() {
       log('¿Duplicado? ${tercero.numeroOrden == nuevo.numeroOrden}');
     });
 
-    test('números cancelados se reutilizan correctamente', () async {
-      // Crear 5 pedidos activos (números 1-5)
+    test('números cancelados NO se reutilizan (UC-NUM-02)', () async {
+      // Crear 5 pedidos (#1–5)
       final ids = <int>[];
       for (int i = 0; i < 5; i++) {
         ids.add(await PedidoService.guardar(_pedidoRapido()));
       }
 
-      // Cancelar pedidos con números 2 y 4
+      // Cancelar #2 y #4 — el high-water mark del día sigue siendo 5
       await PedidoService.cancelar(ids[1]); // numeroOrden = 2
       await PedidoService.cancelar(ids[3]); // numeroOrden = 4
 
-      // El siguiente número disponible debe ser 6 (porque 6 no está activo)
+      // Siguiente = MAX(todos incluido cancelados) + 1 = 5 + 1 = 6
       final num1 = await DBHelper.obtenerSiguienteNumeroOrden();
       expect(num1, 6);
 
-      // Crear un pedido nuevo - debería usar el 6
+      // Crear #6 y cancelarlo — el high-water mark pasa a 6
       final id6 = await PedidoService.guardar(_pedidoRapido());
       final pedido6 = await PedidoService.obtenerPorId(id6);
       expect(pedido6!.numeroOrden, 6);
-
-      // Ahora cancelar el pedido 6
       await PedidoService.cancelar(id6);
 
-      // El siguiente número disponible debería ser 6 nuevamente (reutilizar)
-      // porque el máximo activo es 5, siguiente = 6, y 6 no está activo
+      // Siguiente debe ser 7, NO 6 (el 6 fue cancelado pero no se reutiliza)
       final num2 = await DBHelper.obtenerSiguienteNumeroOrden();
-      expect(num2, 6);
+      expect(num2, 7);
 
-      // Verificar que podemos reutilizar números cancelados
-      // Cancelar todos los pedidos activos
+      // Cancelar todos los activos restantes
       for (final id in ids) {
         await PedidoService.cancelar(id);
       }
 
-      // Ahora no hay pedidos activos, el máximo activo es 0, siguiente = 1
+      // Aunque no hay pedidos activos, el high-water mark del día es 6 → siguiente = 7
       final num3 = await DBHelper.obtenerSiguienteNumeroOrden();
-      expect(num3, 1);
+      expect(num3, 7);
     });
 
-    test('no duplica números al reiniciar ciclo después de 100', () async {
-      // Crear 100 pedidos (números 1-100)
-      for (int i = 0; i < 100; i++) {
-        await PedidoService.guardar(_pedidoRapido());
-      }
-
-      // El siguiente número debe ser 1 (reinicio)
-      final num1 = await DBHelper.obtenerSiguienteNumeroOrden();
-      expect(num1, 1);
-
-      // Cancelar el pedido número 1 (el primer pedido del día)
-      // Para esto necesitamos obtener el primer pedido
-      final db = await DBHelper.db;
-      final primerPedido = await db.query(
-        'pedidos',
-        where: 'cancelado = 0',
-        orderBy: 'numeroOrden ASC',
-        limit: 1,
-      );
-      final primerId = primerPedido.first['id'] as int;
-      await PedidoService.cancelar(primerId);
-
-      // El siguiente número disponible debe ser 1 (reutilizar)
-      final num2 = await DBHelper.obtenerSiguienteNumeroOrden();
-      expect(num2, 1);
-
-      // Crear pedido nuevo - debe usar 1
-      final idNuevo = await PedidoService.guardar(_pedidoRapido());
-      final pedidoNuevo = await PedidoService.obtenerPorId(idNuevo);
-      expect(pedidoNuevo!.numeroOrden, 1);
-    });
-
-    test('asegura unicidad para pedidos activos del mismo día', () async {
-      // Crear varios pedidos y cancelar algunos en patrón irregular
+    test('nuevos pedidos continúan desde el máximo, sin rellenar huecos', () async {
+      // Crear 10 pedidos (#1–10) y cancelar los de posición impar (#2,#4,#6,#8,#10)
       final ids = <int>[];
       for (int i = 0; i < 10; i++) {
         ids.add(await PedidoService.guardar(_pedidoRapido()));
       }
-
-      // Cancelar pedidos en posiciones impares
       for (int i = 1; i < ids.length; i += 2) {
-        await PedidoService.cancelar(ids[i]);
+        await PedidoService.cancelar(ids[i]); // cancela #2, #4, #6, #8, #10
       }
 
-      // Verificar que no hay duplicados en pedidos activos
+      // El high-water mark es 10 → siguiente = 11 (sin rellenar #2, #4, #6, #8, #10)
+      final siguienteEsperado = await DBHelper.obtenerSiguienteNumeroOrden();
+      expect(siguienteEsperado, 11);
+
+      // Crear 5 pedidos más: deben ser #11, #12, #13, #14, #15
+      final nuevosIds = <int>[];
+      for (int i = 0; i < 5; i++) {
+        nuevosIds.add(await PedidoService.guardar(_pedidoRapido()));
+      }
+
       final db = await DBHelper.db;
-      final activos = await db.rawQuery(
+      final nuevos = await Future.wait(
+        nuevosIds.map((id) => PedidoService.obtenerPorId(id)),
+      );
+      final numerosNuevos = nuevos.map((p) => p!.numeroOrden).toList();
+      expect(numerosNuevos, [11, 12, 13, 14, 15]);
+
+      // No debe haber duplicados en pedidos activos
+      final duplicados = await db.rawQuery(
         'SELECT numeroOrden FROM pedidos WHERE cancelado = 0 GROUP BY numeroOrden HAVING COUNT(*) > 1',
       );
-      expect(
-        activos,
-        isEmpty,
-        reason: 'No debe haber números duplicados en pedidos activos',
-      );
+      expect(duplicados, isEmpty, reason: 'No debe haber números duplicados en pedidos activos');
 
-      // Crear 20 pedidos más y verificar que siguen sin duplicados
-      for (int i = 0; i < 20; i++) {
-        await PedidoService.guardar(_pedidoRapido());
-      }
-
-      final activos2 = await db.rawQuery(
-        'SELECT numeroOrden FROM pedidos WHERE cancelado = 0 GROUP BY numeroOrden HAVING COUNT(*) > 1',
+      // Los huecos (2, 4, 6, 8, 10) no fueron reutilizados
+      final numerosActivos = await db.rawQuery(
+        'SELECT numeroOrden FROM pedidos WHERE cancelado = 0 ORDER BY numeroOrden',
       );
-      expect(
-        activos2,
-        isEmpty,
-        reason:
-            'No debe haber números duplicados en pedidos activos después de crear más',
-      );
+      final nums = numerosActivos.map((r) => r['numeroOrden'] as int).toSet();
+      expect(nums.contains(2), isFalse, reason: '#2 fue cancelado y no debe reaparecer');
+      expect(nums.contains(4), isFalse, reason: '#4 fue cancelado y no debe reaparecer');
     });
   });
 

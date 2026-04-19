@@ -135,6 +135,47 @@ class PedidoService {
     return pedido.id ?? 0;
   }
 
+  /// Actualiza un pedido ya cobrado con snapshot: aplica el diff de stock
+  /// vs [pedidoAnterior.productosCobrados] y actualiza el snapshot —
+  /// todo en una sola transacción atómica. Marca estadoPago = recobrar
+  /// para que la conciliación de pago posterior no vuelva a tocar el stock.
+  static Future<void> actualizarConDiffStock({
+    required Pedido pedidoAnterior,
+    required Pedido pedidoNuevo,
+  }) async {
+    final error = pedidoNuevo.validar();
+    if (error != null) throw Exception('Validación: $error');
+
+    final db = await DBHelper.db;
+    await db.transaction((txn) async {
+      // 1. Guardar datos del pedido
+      await txn.update(
+        'pedidos',
+        pedidoNuevo.toMap(),
+        where: 'id = ?',
+        whereArgs: [pedidoNuevo.id],
+      );
+
+      // 2. Ajustar stock: solo el delta respecto a lo cobrado anteriormente
+      await InsumoService.aplicarDiffStock(
+        productosAntes: pedidoAnterior.productosCobrados!,
+        productosDespues: pedidoNuevo.productos,
+        txn: txn,
+      );
+
+      // 3. Actualizar snapshot + marcar para recobro de pago
+      await txn.update(
+        'pedidos',
+        {
+          'estadoPago': PaymentStatus.recobrar.displayName,
+          'productosCobrados': jsonEncode(pedidoNuevo.productos),
+        },
+        where: 'id = ?',
+        whereArgs: [pedidoNuevo.id],
+      );
+    });
+  }
+
   static Future<int> actualizarEstado(int id, String nuevoEstado) async {
     // Validar que no se pueda cerrar un pedido sin cobrar
     if (nuevoEstado == OrderStatus.cerrados.displayName) {

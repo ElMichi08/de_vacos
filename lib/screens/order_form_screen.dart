@@ -94,11 +94,25 @@ class _OrderFormScreenState extends State<OrderFormScreen> {
 
   Future<void> _editarItem(int index) async {
     final item = _itemsPedido[index];
-    if (item.def == null) return;
-    final confirmado = await showPlatoSelectorSheet(context, item.def!);
+    // Si def fue asignado en sesión, úsalo; si no (pedido cargado de BD),
+    // buscar la definición por nombre en el menú ya cargado.
+    MenuItemDefinicion? def = item.def;
+    if (def == null) {
+      for (final d in _menuItems) {
+        if (d.nombre == item.nombre) {
+          def = d;
+          break;
+        }
+      }
+    }
+    if (def == null) {
+      _snack('Este plato ya no está en el menú activo', error: true);
+      return;
+    }
+    final confirmado = await showPlatoSelectorSheet(context, def);
     if (confirmado == null || !mounted) return;
     final cantidadPrevia = item.cantidad;
-    final newItem = _ItemPedido.fromConfirmado(confirmado, item.def!)
+    final newItem = _ItemPedido.fromConfirmado(confirmado, def)
       ..cantidad = cantidadPrevia;
     setState(() => _itemsPedido[index] = newItem);
   }
@@ -180,10 +194,17 @@ class _OrderFormScreenState extends State<OrderFormScreen> {
       }
 
       if (p != null) {
-        await PedidoService.actualizar(pedidoFinal);
-        // Si el pedido ya estaba cobrado, marcarlo para recobro
-        if (p.estadoPago == PaymentStatus.cobrado) {
-          await PedidoService.setRecobrar(p.id!);
+        if (p.estadoPago == PaymentStatus.cobrado && p.productosCobrados != null) {
+          // Snapshot disponible: ajusta stock del diff inmediatamente
+          await PedidoService.actualizarConDiffStock(
+            pedidoAnterior: p,
+            pedidoNuevo: pedidoFinal,
+          );
+        } else {
+          await PedidoService.actualizar(pedidoFinal);
+          if (p.estadoPago == PaymentStatus.cobrado) {
+            await PedidoService.setRecobrar(p.id!);
+          }
         }
         if (mounted) { _snack('Pedido actualizado exitosamente', error: false); context.pop(true); }
       } else {
@@ -282,9 +303,7 @@ class _OrderFormScreenState extends State<OrderFormScreen> {
                         ..._itemsPedido.asMap().entries.map(
                               (e) => _PedidoItemTile(
                                 item: e.value,
-                                onEdit: e.value.def != null
-                                    ? () => _editarItem(e.key)
-                                    : null,
+                                onEdit: () => _editarItem(e.key),
                                 onDelete: () => _eliminarItem(e.key),
                                 onIncrement: () =>
                                     setState(() => e.value.cantidad++),

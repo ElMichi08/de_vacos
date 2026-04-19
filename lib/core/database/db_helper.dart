@@ -495,10 +495,9 @@ class DBHelper {
     }
   }
 
-  /// Obtiene el siguiente número de orden (1-100, luego se reinicia)
-  /// Considera solo pedidos activos (no cancelados) para el cálculo.
-  /// Los números de pedidos cancelados se consideran disponibles para reutilización.
-  /// Verifica unicidad para pedidos activos del mismo día.
+  /// Obtiene el siguiente número de orden (1-n, sin límite superior, reinicio diario implícito).
+  /// Consulta el máximo histórico del día (incluyendo pedidos cancelados) para garantizar
+  /// que ningún número se reasigne, incluso tras soft-delete.
   /// Si se provee [txn], usa esa transacción; de lo contrario, abre una nueva.
   static Future<int> obtenerSiguienteNumeroOrden({Transaction? txn}) async {
     if (txn != null) {
@@ -514,6 +513,8 @@ class DBHelper {
   }
 
   /// Lógica interna para calcular el siguiente número de orden dentro de un executor (transacción).
+  /// Usa el high-water mark del día (todos los pedidos, incluidos cancelados) para garantizar
+  /// que los números sean estrictamente crecientes y no se reutilicen tras soft-delete.
   static Future<int> _calcularSiguienteNumeroOrden(
     DatabaseExecutor executor,
   ) async {
@@ -521,64 +522,21 @@ class DBHelper {
     final inicioDia = DateTime(hoy.year, hoy.month, hoy.day);
     final finDia = DateTime(hoy.year, hoy.month, hoy.day, 23, 59, 59, 999);
 
-    // Obtener el máximo número de orden generado hoy para pedidos activos (no cancelados)
+    // Obtener el máximo número de orden del día incluyendo pedidos cancelados.
+    // Esto garantiza que un número asignado a un pedido cancelado no se reutilice.
     final result = await executor.rawQuery(
       '''
       SELECT MAX(numeroOrden) as maxOrden
-      FROM pedidos 
-      WHERE fecha BETWEEN ? AND ? AND cancelado = 0
+      FROM pedidos
+      WHERE fecha BETWEEN ? AND ?
     ''',
       [inicioDia.toIso8601String(), finDia.toIso8601String()],
     );
 
     final maxOrden = result.first['maxOrden'] as int? ?? 0;
 
-    // Calcular el siguiente número de orden
-    int siguiente = (maxOrden % 100) + 1;
-
-    // Verificar que el número no esté asignado a un pedido activo del mismo día
-    final resultDuplicado = await executor.rawQuery(
-      '''
-      SELECT COUNT(*) as count
-      FROM pedidos 
-      WHERE fecha BETWEEN ? AND ? 
-        AND cancelado = 0 
-        AND numeroOrden = ?
-    ''',
-      [inicioDia.toIso8601String(), finDia.toIso8601String(), siguiente],
-    );
-
-    final count = resultDuplicado.first['count'] as int? ?? 0;
-
-    // Si el número ya está en uso, buscar el siguiente disponible
-    if (count > 0) {
-      // Obtener todos los números de orden activos del día
-      final resultNumeros = await executor.rawQuery(
-        '''
-        SELECT numeroOrden
-        FROM pedidos 
-        WHERE fecha BETWEEN ? AND ? AND cancelado = 0
-        ORDER BY numeroOrden
-      ''',
-        [inicioDia.toIso8601String(), finDia.toIso8601String()],
-      );
-
-      final Set<int> numerosActivos = {};
-      for (final row in resultNumeros) {
-        final num = (row['numeroOrden'] as int?) ?? 0;
-        numerosActivos.add(num);
-      }
-
-      // Buscar el siguiente número disponible en el rango 1-100
-      for (int i = 1; i <= 100; i++) {
-        if (!numerosActivos.contains(i)) {
-          siguiente = i;
-          break;
-        }
-      }
-    }
-
-    return siguiente;
+    // Siguiente número = high-water mark + 1 (sin ciclo ni gap-filling)
+    return maxOrden + 1;
   }
 
   // Métodos helper para productos

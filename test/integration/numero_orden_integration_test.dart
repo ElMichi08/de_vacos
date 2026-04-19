@@ -54,9 +54,9 @@ void main() {
         await PedidoService.guardar(_pedidoRapido());
       }
 
-      // El siguiente número debe ser 1 (reinicio)
+      // Sin ciclo: 100 pedidos → siguiente = 101
       final num1 = await DBHelper.obtenerSiguienteNumeroOrden();
-      expect(num1, 1);
+      expect(num1, 101);
 
       // Simular cambio de día: modificar la fecha de los pedidos existentes al día anterior
       final db = await DBHelper.db;
@@ -81,25 +81,25 @@ void main() {
     });
   });
 
-  group('Integración: Reutilización de números cancelados después de reinicio', () {
+  group('Integración: Números cancelados no se reutilizan entre ni dentro de días', () {
     test(
-      'cancelar números y verificar que se reutilizan después de reinicio diario',
+      'números cancelados no se reutilizan; nuevo día reinicia desde 1 (UC-NUM-02, UC-NUM-04)',
       () async {
-        // Crear 5 pedidos hoy
+        // Crear 5 pedidos hoy (#1–5)
         final ids = <int>[];
         for (int i = 0; i < 5; i++) {
           ids.add(await PedidoService.guardar(_pedidoRapido()));
         }
 
-        // Cancelar pedidos 2 y 4
+        // Cancelar #2 y #4 — high-water mark del día sigue siendo 5
         await PedidoService.cancelar(ids[1]);
         await PedidoService.cancelar(ids[3]);
 
-        // El siguiente número disponible debe ser 6 (porque 6 no está activo)
+        // Siguiente = high-water mark (5) + 1 = 6
         final num1 = await DBHelper.obtenerSiguienteNumeroOrden();
         expect(num1, 6);
 
-        // Crear pedido con número 6
+        // Crear pedido #6
         final id6 = await PedidoService.guardar(_pedidoRapido());
         final pedido6 = await PedidoService.obtenerPorId(id6);
         expect(pedido6!.numeroOrden, 6);
@@ -107,106 +107,98 @@ void main() {
         // Cambiar de día: mover todos los pedidos al día anterior
         final db = await DBHelper.db;
         final ayer = DateTime.now().subtract(Duration(days: 1));
-        await db.update('pedidos', {
-          'fecha': ayer.toIso8601String(),
-        }, where: '1=1');
+        await db.update('pedidos', {'fecha': ayer.toIso8601String()}, where: '1=1');
 
-        // Para hoy, no hay pedidos activos
+        // Nuevo día → MAX de hoy = 0 → siguiente = 1 (reinicio implícito, UC-NUM-04)
         final num2 = await DBHelper.obtenerSiguienteNumeroOrden();
         expect(num2, 1);
 
-        // Crear pedidos hoy, números deben ser secuenciales
+        // Primer pedido del nuevo día es #1
         final idNuevo1 = await PedidoService.guardar(_pedidoRapido());
         final pedidoNuevo1 = await PedidoService.obtenerPorId(idNuevo1);
         expect(pedidoNuevo1!.numeroOrden, 1);
 
-        // Cancelar el pedido 1
+        // Cancelar el #1 del nuevo día
         await PedidoService.cancelar(idNuevo1);
 
-        // El siguiente debe ser 2 (porque 1 está cancelado, max activo es 0, siguiente 1, pero 1 está activo? No, está cancelado, entonces debería ser 1? Verifiquemos)
-        // Según lógica: maxOrden activo = 0, siguiente = 1, verificar unicidad: no hay pedidos activos con numeroOrden=1, entonces devuelve 1.
+        // Siguiente debe ser 2 — el #1 cancelado NO se reutiliza
         final num3 = await DBHelper.obtenerSiguienteNumeroOrden();
-        expect(num3, 1); // Reutiliza el cancelado
+        expect(num3, 2);
       },
     );
   });
 
-  group('Integración: Unicidad en ciclo de 100', () {
+  group('Integración: Unicidad sin límite superior (UC-NUM-01)', () {
     test(
-      'crear 100 pedidos, cancelar algunos, verificar que no hay duplicados',
+      'crear 100 pedidos, cancelar algunos, verificar no duplicados y secuencia continúa más allá de 100',
       () async {
-        // Crear 100 pedidos
+        // Crear 100 pedidos (#1–100)
         final ids = <int>[];
         for (int i = 0; i < 100; i++) {
           ids.add(await PedidoService.guardar(_pedidoRapido()));
         }
 
-        // Cancelar pedidos en posiciones impares
+        // Cancelar pedidos en posiciones pares (indices 0, 2, 4…)
         for (int i = 0; i < ids.length; i += 2) {
           await PedidoService.cancelar(ids[i]);
         }
 
-        // Verificar que no hay duplicados en pedidos activos
+        // No debe haber duplicados en pedidos activos
         final db = await DBHelper.db;
         final activos = await db.rawQuery(
           'SELECT numeroOrden FROM pedidos WHERE cancelado = 0 GROUP BY numeroOrden HAVING COUNT(*) > 1',
         );
-        expect(
-          activos,
-          isEmpty,
-          reason: 'No debe haber números duplicados en pedidos activos',
-        );
+        expect(activos, isEmpty, reason: 'No debe haber números duplicados en pedidos activos');
 
-        // El siguiente número debe estar en el rango 1-100 y no estar activo
+        // El siguiente debe ser 101 (high-water mark = 100, sin ciclo)
         final siguiente = await DBHelper.obtenerSiguienteNumeroOrden();
-        expect(siguiente, greaterThanOrEqualTo(1));
-        expect(siguiente, lessThanOrEqualTo(100));
+        expect(siguiente, 101);
 
-        // Crear 50 pedidos más (esto debería seguir el ciclo)
+        // Crear 50 pedidos más (#101–150)
         for (int i = 0; i < 50; i++) {
           await PedidoService.guardar(_pedidoRapido());
         }
 
-        // Verificar que aún no hay duplicados
+        // Aún sin duplicados
         final activos2 = await db.rawQuery(
           'SELECT numeroOrden FROM pedidos WHERE cancelado = 0 GROUP BY numeroOrden HAVING COUNT(*) > 1',
         );
-        expect(
-          activos2,
-          isEmpty,
-          reason: 'No debe haber duplicados después de más pedidos',
-        );
+        expect(activos2, isEmpty, reason: 'No debe haber duplicados después de más pedidos');
+
+        // El siguiente debe ser 151
+        final siguiente2 = await DBHelper.obtenerSiguienteNumeroOrden();
+        expect(siguiente2, 151);
       },
     );
   });
 
-  group('Integración: Soft delete no afecta reinicio', () {
+  group('Integración: Soft delete no recicla números (UC-NUM-02, UC-NUM-03)', () {
     test(
-      'pedidos cancelados no cuentan como activos pero sus números están disponibles',
+      'cancelar todos los pedidos del día no reinicia el contador',
       () async {
-        // Crear 10 pedidos
+        // Crear 10 pedidos (#1–10)
         final ids = <int>[];
         for (int i = 0; i < 10; i++) {
           ids.add(await PedidoService.guardar(_pedidoRapido()));
         }
 
-        // Cancelar todos
+        // Cancelar todos (UC-NUM-03: todos cancelados)
         for (final id in ids) {
           await PedidoService.cancelar(id);
         }
 
-        // No hay pedidos activos, siguiente debe ser 1
+        // High-water mark = 10 → siguiente = 11 (no resetea a 1)
         final num1 = await DBHelper.obtenerSiguienteNumeroOrden();
-        expect(num1, 1);
+        expect(num1, 11);
 
-        // Crear 100 pedidos nuevos (debería reiniciar ciclo después de 100)
+        // Crear 100 pedidos más (#11–110)
         for (int i = 0; i < 100; i++) {
           await PedidoService.guardar(_pedidoRapido());
         }
 
-        // El siguiente debe ser 1 (reinicio)
+        // High-water mark = 110 → siguiente = 111 (sin ciclo)
         final num2 = await DBHelper.obtenerSiguienteNumeroOrden();
-        expect(num2, 1);
+        expect(num2, 111);
       },
     );
   });
