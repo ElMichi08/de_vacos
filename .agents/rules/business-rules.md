@@ -37,7 +37,7 @@
 
 | Palabra Clave | Categoría | Regla específica |
 |---------------|-----------|------------------|
-| "numeración" | Pedidos | Numeración 1-100 |
+| "numeración" | Pedidos | Numeración 1-n (high-water mark diario) |
 | "unicidad" | Pedidos | Unicidad de numeroOrden |
 | "cancelado" | Pedidos | Soft delete (cancelado) |
 | "cerrar" | Pedidos | No cerrar sin cobrar |
@@ -103,21 +103,14 @@
 
 | ID | Caso de uso | Descripción | Ubicación | Estado |
 |----|-------------|-------------|-----------|--------|
-| **UC-01** | **Cobro normal con receta** | Al marcar "Cobrado" por primera vez: por cada producto con receta descuenta `receta.cantidad × cantidadProducto` de cada insumo en una sola transacción SQLite. Al finalizar guarda un snapshot de los productos cobrados en `productosCobrados`. | `lib/services/pedido_service.dart`, `lib/services/insumo_service.dart:44-87` | ✅ Implementado (sin snapshot aún) |
+| **UC-01** | **Cobro normal con receta** | Al marcar "Cobrado" por primera vez: por cada producto con receta descuenta `receta.cantidad × cantidadProducto` de cada insumo en una sola transacción SQLite. Al finalizar guarda un snapshot en `productosCobrados`. | `lib/services/pedido_service.dart`, `lib/services/insumo_service.dart:44-87` | ✅ Implementado |
 | **UC-02** | **Producto sin receta al cobrar** | Si un producto no tiene filas en `receta_detalle`, no se modifica el stock. El cobro continúa sin error. | `lib/services/pedido_service.dart:187-193` | ✅ Implementado |
 | **UC-03** | **Prevención de stock insuficiente en UI** | Al agregar un producto al formulario del pedido, si algún insumo de su receta no tiene stock suficiente, el producto se muestra en rojo (disabled). `StockInsuficienteException` permanece como guarda en el backend. | `lib/widgets/order_form_widget.dart` (pendiente) | ⬜ Pendiente |
-| **UC-04** | **Cobro incremental (pedido editado tras cobro)** | Un pedido puede editarse mientras no esté "Cerrado". Al re-cobrar se calcula el diff entre `productos` (estado actual) y `productosCobrados` (snapshot anterior): producto nuevo → descontar; producto eliminado → devolver; cantidad aumentada → descontar diferencia; cantidad disminuida → devolver diferencia; sin cambio → no tocar. Al finalizar, actualizar el snapshot `productosCobrados`. | `lib/services/pedido_service.dart` (pendiente), `lib/models/pedido.dart` (campo nuevo) | ⬜ Pendiente |
-| **UC-05** | **Edición de pedido** | Permitida en cualquier estado excepto "Cerrado" y "Cancelado". Si el pedido ya estaba cobrado, al re-cobrar aplica UC-04. | `lib/screens/order_list_screen.dart` | ⬜ Parcialmente implementado |
+| **UC-04** | **Cobro incremental (pedido editado tras cobro)** | Un pedido puede editarse mientras no esté "Cerrado". Si tiene snapshot (`productosCobrados != null`), se llama `actualizarConDiffStock()`: calcula el diff entre `productosCobrados` y `productos` actuales (nuevo → descontar; eliminado → devolver; cantidad cambiada → delta), actualiza el snapshot y marca `estadoPago=Recobrar`, todo en una sola transacción atómica. Si no hay snapshot (órdenes históricas), se llama `actualizar()` + `setRecobrar()`. | `lib/services/pedido_service.dart:actualizarConDiffStock`, `lib/screens/order_form_screen.dart:_guardarPedido` | ✅ Implementado |
+| **UC-05** | **Edición de pedido** | Permitida en cualquier estado excepto "Cerrado" y "Cancelado". El formulario de edición resuelve `MenuItemDefinicion` por nombre cuando `item.def == null` (ítems cargados desde BD). Si el pedido ya estaba cobrado, al guardar aplica UC-04. | `lib/screens/order_form_screen.dart`, `lib/screens/order_list_screen.dart` | ✅ Implementado |
 | **UC-06** | **Cancelar pedido cobrado** | El modal de cancelación (slidable existente) agrega una opción de motivo: **Cancelación** (no fue preparado) → devuelve stock según `productosCobrados`; **Devolución** (ya fue despachado, se reembolsa) → no devuelve stock. | `lib/widgets/order_detail_modal.dart` (pendiente) | ⬜ Pendiente |
 | **UC-07** | **Insumo soft-deleted en receta** | Si un insumo de la receta tiene `cancelado = 1`, se omite en el descuento, se registra advertencia en log, y el cobro continúa normalmente. | `lib/services/insumo_service.dart:52-54` | ✅ Implementado (sin advertencia explícita) |
 | **UC-08** | **No cerrar sin cobrar** | Un pedido no puede cambiar a estado "Cerrado" si `estadoPago != Cobrado`. | `lib/services/pedido_service.dart:136-145` | ✅ Implementado |
-
-### 2c. Cambios de modelo requeridos
-
-| Cambio | Archivo | Descripción |
-|--------|---------|-------------|
-| Campo `productosCobrados` | `lib/models/pedido.dart` + migración DB v8 | Snapshot JSON de productos en el momento del último cobro. Permite calcular diff en UC-04 y revertir en UC-06. |
-| Método `devolverStock()` | `lib/services/insumo_service.dart` | Inverso de `descontarStock()`. Usado en UC-04 (eliminación de producto) y UC-06 (cancelación). |
 
 ---
 
@@ -185,4 +178,4 @@
 
 ---
 
-*Documento generado el 30/03/2026 por el pipeline Michibot (PM role).* Se actualizó el 01/04/2026 para incluir defensive casting y quality gate.
+*Última actualización: 2026-04-19. UC-04 y UC-05 marcados como implementados. Numeración de órdenes actualizada a high-water mark sin ciclo. Sección de cambios de modelo requeridos eliminada (todos implementados).*

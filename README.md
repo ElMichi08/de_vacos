@@ -6,14 +6,14 @@ Aplicación de Point of Sale (POS) multiplataforma para el restaurante "De Vacos
 
 ```bash
 # 1. Clonar repositorio
-git clone https://github.com/tu-usuario/de_vacos.git
+git clone https://github.com/ElMichi08/de_vacos.git
 cd de_vacos
 
 # 2. Instalar dependencias
 flutter pub get
 
 # 3. Configurar variables de entorno (ver Configuración)
-#    - Crear archivo .env en la raíz con SUPABASE_URL, SUPABASE_ANON_KEY, CLIENTE_ID
+#    Crear archivo .env en la raíz con SUPABASE_URL, SUPABASE_ANON_KEY, CLIENTE_ID
 
 # 4. Ejecutar en modo desarrollo
 flutter run
@@ -22,8 +22,9 @@ flutter run
 ## Características
 
 - **POS completo**: Gestión de productos, pedidos, caja, cocina e inventario.
-- **Base de datos local**: SQLite con migraciones, funciona offline.
+- **Base de datos local**: SQLite v11 con migraciones incrementales, funciona offline.
 - **Sincronización en la nube**: Supabase para licencias, reportes y cobros.
+- **Multi-pago**: Soporte para cobros mixtos (efectivo + transferencia) con hasta 3 pagos por pedido.
 - **Panel web admin**: Vistas read-only para reportes, licencias y cobros.
 - **Impresión térmica**: Soporte para impresoras USB/Bluetooth.
 - **Branding dinámico**: Configurable vía `assets/config/branding.json`.
@@ -33,103 +34,85 @@ flutter run
 - Flutter SDK 3.7.2 o superior
 - Dart
 - Android Studio / VS Code con plugins de Flutter
-- (Opcional) Node.js para herramientas de desarrollo
 
 ## Instalación
 
-1. **Clonar repositorio**:
-   ```bash
-   git clone https://github.com/tu-usuario/de_vacos.git
-   cd de_vacos
-   ```
-
-2. **Instalar dependencias**:
+1. **Instalar dependencias**:
    ```bash
    flutter pub get
    ```
 
-3. **Configurar variables de entorno**:
-   - **Desarrollo (debug)**: Crear archivo `.env` en la raíz con:
+2. **Configurar variables de entorno**:
+   - **Desarrollo (debug)**: Crear archivo `.env` en la raíz:
      ```
      SUPABASE_URL=tu_url
      SUPABASE_ANON_KEY=tu_clave
      CLIENTE_ID=tu_cliente_id
      ```
-   - **Producción (release)**: Usar `--dart-define` en el build:
+   - **Producción (release)**:
      ```bash
      flutter build apk --dart-define=SUPABASE_URL=... --dart-define=SUPABASE_ANON_KEY=... --dart-define=CLIENTE_ID=...
      ```
 
-4. **Ejecutar**:
+3. **Ejecutar**:
    ```bash
    flutter run
    ```
 
 ## Uso
 
-### Ejemplo básico
-1. Iniciar sesión en la app (la primera vez carga datos de ejemplo).
+1. Iniciar la app (la primera vez carga datos de ejemplo vía Test Data).
 2. Navegar a **Productos** para agregar ítems al menú.
-3. Crear un **Pedido** seleccionando productos.
-4. En **Cocina** ver los pedidos pendientes.
-5. En **Caja** registrar pagos y ver reportes.
+3. Crear un **Pedido** desde la pantalla de órdenes.
+4. En **Cocina** ver los pedidos pendientes en tiempo real.
+5. En **Caja** registrar pagos, recobros y ver el resumen diario.
+6. En **Reportes** consultar ventas, top productos y filtrar por método de pago.
 
 ### Panel web
-Ejecutar en navegador:
 ```bash
 flutter run -d chrome
 ```
-Luego acceder a:
-- `/panel/reportes` – Reportes semanales
-- `/panel/licencias` – Gestión de licencias
-- `/panel/cobros` – Cobros pendientes
-
-## Configuración avanzada
-
-- **Branding**: Personalizar nombre, colores y funcionalidades en `assets/config/branding.json`. Ver [Guía de Branding](docs/LICENCIAS_Y_REPORTES.md#configuración-de-marca-brandingjson).
-- **Licencias y reportes**: Configurar política de gracia, envío de datos a Supabase. Ver [Guía de Licencias](docs/LICENCIAS_Y_REPORTES.md).
-- **Ofuscación**: Para builds de producción, ofuscar código:
-  ```bash
-  flutter build apk --obfuscate --split-debug-info=build/symbols
-  ```
+Rutas disponibles: `/panel/reportes`, `/panel/licencias`, `/panel/cobros`.
 
 ## Arquitectura
 
-Arquitectura basada en Flutter con separación de capas (UI → Logic → Data). Para detalles completos ver [Arquitectura del proyecto](docs/architecture.md).
+Basada en Flutter con separación de capas UI → Services → Repositories → SQLite.
 
-### Estructura principal
 ```
 lib/
-├── models/         # DTOs (Pedido, Producto, Caja, etc.)
+├── models/         # DTOs (Pedido, Producto, Caja, Insumo, Modalidad...)
 ├── services/       # Lógica de negocio (estática)
-├── core/           # Configuración, base de datos, constantes
-├── screens/        # 15 pantallas de la app
-├── widgets/        # Componentes reutilizables
-├── panel/          # Vistas web de admin
+├── repositories/   # Acceso a datos (interfaces + implementaciones SQLite)
+├── injection/      # DIContainer (singleton de repositorios)
+├── core/           # SQLite DBHelper v11, BrandingConfig
+├── screens/        # 15 pantallas
+├── widgets/        # 20 componentes reutilizables
+├── panel/          # Vistas web de admin (Supabase)
 └── app_router.dart # Navegación con GoRouter
 ```
 
-### Reglas de navegación
-Usar siempre `context.go()` o `context.push()` de GoRouter. **No usar** `Navigator.of(context).pushReplacement()`.
+Reglas detalladas: `.agents/rules/architecture.md`  
+Reglas de negocio: `.agents/rules/business-rules.md`
 
-## Tests
+### Navegación
+Usar siempre `context.go()` o `context.push()`. **No usar** `Navigator.of(context).pushReplacement()`.
 
-Ejecutar todos los tests:
+## Quality Gate
+
+Antes de cada commit el hook pre-commit ejecuta automáticamente:
 ```bash
-flutter test
+flutter analyze   # 0 issues
+flutter test      # 0 failures (192+ tests)
 ```
 
-Cobertura actual: 91 tests unitarios en servicios, 24 tests de widgets, algunos tests de screens pendientes.
+## Configuración avanzada
 
-## Contribuir
-
-Ver [Guía de Contribución](docs/contributing.md) (próximamente).
-
-## Documentación completa
-
-- [Licencias y Reportes](docs/LICENCIAS_Y_REPORTES.md)
-- [Arquitectura del Proyecto](docs/architecture.md)
-- [Deuda Técnica](docs/deuda-tecnica.md)
+- **Branding**: Personalizar nombre, colores y features en `assets/config/branding.json`.
+- **Licencias**: Ver [Guía de Licencias](docs/LICENCIAS_Y_REPORTES.md).
+- **Ofuscación** (release):
+  ```bash
+  flutter build apk --obfuscate --split-debug-info=build/symbols
+  ```
 
 ## Licencia
 
