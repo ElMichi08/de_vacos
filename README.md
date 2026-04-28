@@ -178,19 +178,6 @@ flutter build apk --obfuscate --split-debug-info=build/symbols
 5. En **Caja** registrar pagos y ver el resumen diario
 6. En **Reportes** consultar ventas, top productos y filtrar por método de pago
 
-### Panel web admin
-
-```bash
-flutter run -d chrome
-```
-
-| Ruta | Contenido |
-|------|-----------|
-| `/panel/reportes` | Ventas y métricas |
-| `/panel/licencias` | Gestión de licencias |
-| `/panel/cobros` | Historial de cobros |
-
----
 
 ## Configuración avanzada
 
