@@ -13,7 +13,7 @@
 
 </div>
 
-App POS en Flutter/Dart, offline-first, que desarrollé para De Vacos Urban Grill, el negocio de comida rápida de mi familia en Latacunga. Reemplazó un proceso 100% manual y está en uso diario desde [mes y año].
+App POS en Flutter/Dart, offline-first, que desarrollé para De Vacos Urban Grill, el negocio de comida rápida de mi familia en Latacunga. Reemplazó un proceso 100% manual y está en uso diario desde agosto del 2025.
 
 **Resultado:** el negocio pasó de ~40 a más de 100 pedidos diarios, con picos de 160, y la app sostuvo ese volumen sin cambios en el proceso operativo.
 
